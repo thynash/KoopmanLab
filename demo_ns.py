@@ -5,7 +5,7 @@ device = torch.device("cpu")
 print("Using device:", device)
 
 # Path
-data_path = "/content/ns_data_V1e-4_N20_T50_R256test.mat"
+data_path = "/content/NavierStokes_V1e-5_N1200_T20.mat"
 fig_path = "./content"
 save_path = "./content"
 
