@@ -1,13 +1,13 @@
 import torch
 import koopmanlab as kp
 # Setting your computing device
-torch.cuda.set_device(0)
-device = torch.device("cuda")
+device = torch.device("cpu")
+print("Using device:", device)
 
 # Path
-data_path = "./data/ns_V1e-3_N5000_T50.mat"
-fig_path = "./demo/fig/"
-save_path = "./demo/result/"
+data_path = "/content/ns_V1e-3_N5000_T50.mat"
+fig_path = "./content"
+save_path = "./content"
 
 # Loading Data
 train_loader, test_loader = kp.data.navier_stokes(data_path, batch_size = 10, T_in = 10, T_out = 40, type = "1e-3", sub = 1)
