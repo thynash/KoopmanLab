@@ -22,9 +22,9 @@ r = 8 # Power of Koopman Matrix
 koopman_model = kp.model.koopman(backbone = "KNO2d", autoencoder = "MLP", o = o, m = m, r = r, t_in = 10, device = device)
 koopman_model.compile()
 koopman_model.opt_init("Adam", lr = 0.005, step_size=100, gamma=0.5)
-koopman_model.train(epochs=ep, trainloader = train_loader, evalloader = test_loader)
+koopman_model.train(epochs=ep, trainloader = train_loader, evalloader = test_loader,T_out=10)
 
 # Result and Saving
-time_error = koopman_model.test(test_loader, path = fig_path, is_save = True, is_plot = True)
+time_error = koopman_model.test(test_loader, path = fig_path, T_out=10,is_save = True, is_plot = True)
 filename = "ns_time_error_op" + str(o) + "m" + str(m) + "r" +str(r) + ".pt"
 torch.save({"time_error":time_error,"params":koopman_model.params}, save_path + filename)
