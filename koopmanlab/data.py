@@ -1,6 +1,6 @@
 import h5py
 import torch
-import scipy.io
+import scipy.io import loadmat
 import numpy as np
 
 def burgers(path, batch_size = 64, sub = 32):
