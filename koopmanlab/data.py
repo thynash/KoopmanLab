@@ -51,7 +51,7 @@ def shallow_water(path, batch_size = 20, T_in = 10, T_out = 20, sub = 1):
     
     return train_loader, test_loader
     
-def navier_stokes(path, batch_size = 20, T_in = 10, T_out = 40, type = "1e-3", sub = 1,reshape = False):
+def navier_stokes(path, batch_size = 20, T_in = 10, T_out = 40, type = "1e-5", sub = 1,reshape = False):
     if type == "1e-3":
         ntrain = 1000
         ntest = 200
@@ -112,7 +112,7 @@ def navier_stokes(path, batch_size = 20, T_in = 10, T_out = 40, type = "1e-3", s
         ntrain = 1100
         ntest = 100
         total = ntrain + ntest
-        f = scipy.io.loadmat(path)
+        f = loadmat(path)
         data = f['u'][...,0:total]
         data = torch.tensor(data,dtype=torch.float32)
         print(data.shape)
