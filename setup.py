@@ -20,14 +20,14 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.8.5',
-    install_requires = [
-        'torch>=1.10',
-        'torchvision>=0.13.1',
-        'matplotlib>=3.3.2',
-        'numpy>=1.14.5',
-        'einops==0.5.0',
-        'timm==0.6.11',
-        'scipy==1.7.3',
-        'h5py==3.7.0',
-    ]
+    install_requires=[
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "einops>=0.7.0",
+    "timm>=1.0.7",
+    "scipy>=1.11",
+    "h5py>=3.10",
+]
 )
