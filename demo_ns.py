@@ -10,7 +10,7 @@ fig_path = "./content"
 save_path = "./content"
 
 # Loading Data
-train_loader, test_loader = kp.data.navier_stokes(data_path, batch_size = 10, T_in = 10, T_out = 40, type = "1e-3", sub = 1)
+train_loader, test_loader = kp.data.navier_stokes(data_path, batch_size = 10, T_in = 10, T_out = 40, type = "1e-5", sub = 1)
 
 # Hyper parameters
 ep = 1 # Training Epoch
