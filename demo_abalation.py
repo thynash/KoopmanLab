@@ -24,7 +24,7 @@ print(device)
 # Dataset
 # ============================================================
 
-data_path = "./data/ns_V1e-5_N1200_T20.mat"
+data_path = "/content/NavierStokes_V1e-5_N1200_T20.mat"
 
 train_loader, test_loader = kp.data.navier_stokes(
     path=data_path,
