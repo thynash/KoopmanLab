@@ -24,7 +24,7 @@ train_loader, test_loader = kp.data.navier_stokes(
 # ==========================================================
 # Hyperparameters
 # ==========================================================
-epochs = 200
+epochs = 20
 
 o = 32
 m = 16
