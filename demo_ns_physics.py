@@ -10,7 +10,7 @@ print(f"Using device: {device}")
 # ==========================================================
 # Dataset
 # ==========================================================
-data_path = "/content/ns_V1e-5_N1200_T20.mat"      # Change if needed
+data_path = "/content/NavierStokes_V1e-5_N1200_T20.mat"      # Change if needed
 
 train_loader, test_loader = kp.data.navier_stokes(
     path=data_path,
