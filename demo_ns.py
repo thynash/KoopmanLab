@@ -13,7 +13,7 @@ save_path = "./content"
 train_loader, test_loader = kp.data.navier_stokes(data_path, batch_size = 10, T_in = 10, T_out = 10, type = "1e-5", sub = 1)
 
 # Hyper parameters
-ep = 1 # Training Epoch
+ep = 20 # Training Epoch
 o = 32 # Koopman Operator Size
 m = 16 # Modes
 r = 8 # Power of Koopman Matrix
