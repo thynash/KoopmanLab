@@ -1,7 +1,11 @@
 import torch
 import koopmanlab as kp
 # Setting your computing device
-device = torch.device("cpu")
+import torch
+
+# Dynamically fall back to CPU if GPU is unavailable
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 print("Using device:", device)
 
 # Path
