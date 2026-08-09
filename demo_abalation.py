@@ -15,6 +15,8 @@ Author: Nityansh Pant
 import random
 import numpy as np
 import torch
+import matplotlib
+matplotlib.use("module://matplotlib_inline.backend_inline")
 import matplotlib.pyplot as plt
 import pandas as pd
 
