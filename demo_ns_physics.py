@@ -1,5 +1,7 @@
 import torch
 import koopmanlab as kp
+import matplotlib
+matplotlib.use("module://matplotlib_inline.backend_inline")
 import matplotlib.pyplot as plt
 
 # ==========================================================
