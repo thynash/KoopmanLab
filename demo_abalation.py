@@ -238,4 +238,4 @@ plt.xlabel("Labeled Data (%)")
 plt.ylabel("Physics Loss")
 plt.title("Physics Residual vs Labeled Data")
 plt.tight_layout()
-plt.show()"
+plt.show()
