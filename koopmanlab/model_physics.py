@@ -372,8 +372,11 @@ class koopman:
                 test_recons_full += l_recons.item()
                 test_pred_full += l_pred.item()
                 test_phy_full += l_phy.item()
-                if(loc == 0 and is_save):
-                    torch.save({"pred":pred, "yy":yy}, path+ "pred_yy.pt")
+                if (loc == 0) and is_save:
+                        torch.save(
+                            {"pred": pred, "yy": yy},
+                            path + "pred_yy.pt"
+                        )
                 if(loc == 0 ) and is_plot:
                     for i in range(T_out):
                         plt.subplot(1,3,1)
@@ -521,9 +524,12 @@ class koopman_vit:
                 test_recons_full += l_recons.item() / T_out
                 l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
                 test_pred_full += l_pred.item()
-                if(loc == 0 & is_save):
-                    torch.save({"pred":pred, "yy":yy}, path+ "pred_yy.pt")
-                if(loc == 0 & is_plot):
+                if (loc == 0) and is_save:
+                        torch.save(
+                            {"pred": pred, "yy": yy},
+                            path + "pred_yy.pt"
+                        )
+                if(loc == 0) and is_plot:
                     for i in range(T_out):
                         plt.subplot(1,3,1)
                         plt.title("Predict")
@@ -614,9 +620,12 @@ class koopman_vit:
                 test_recons_full += l_recons.item() / T_out
                 l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
                 test_pred_full += l_pred.item()
-                if(loc == 0 & is_save):
-                    torch.save({"pred":pred, "yy":yy}, path+ "pred_yy.pt")
-                if(loc == 0 & is_plot):
+                if (loc == 0) and is_save:
+                        torch.save(
+                            {"pred": pred, "yy": yy},
+                            path + "pred_yy.pt"
+                        )
+                if(loc == 0) and is_plot:
                     for i in range(T_out):
                         plt.subplot(1,3,1)
                         plt.title("Predict")
