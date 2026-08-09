@@ -48,7 +48,7 @@ class koopman:
         if self.backbone == "KNO1d":
             self.kernel = kno.KNO1d(encoder, decoder, self.operator_size, modes_x = self.modes, decompose = self.decompose).to(self.device)
             print("KNO1d model is completed.")
-        
+
         elif self.backbone == "KNO2d":
             self.kernel = kno.KNO2d(encoder, decoder, self.operator_size, modes_x = self.modes, modes_y = self.modes,decompose = self.decompose).to(self.device)
             print("KNO2d model is completed.")
@@ -76,10 +76,10 @@ class koopman:
                 xx = xx.to(self.device)
                 yy = yy.to(self.device)
                 pred,im_re = self.kernel(xx)
-                
+
                 l_recons = self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
                 l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
-                
+
                 current = xx[..., -1:]
                 predicted = pred[..., -1:]
                 l_phy = self.physics(current, predicted)
@@ -92,16 +92,16 @@ class koopman:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-            
+
             train_pred_full /= len(trainloader)
             train_recons_full /= len(trainloader)
             train_phy_full /= len(trainloader)
-            
+
             t2 = default_timer()
             test_pred_full = 0
             test_recons_full = 0
             test_phy_full = 0
-            
+
             # Test
             if evalloader:
                 with torch.no_grad():
@@ -114,7 +114,7 @@ class koopman:
 
                         l_recons = self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
                         l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
-                        
+
                         current = xx[..., -1:]
                         predicted = pred[..., -1:]
                         l_phy = self.physics(current, predicted)
@@ -122,11 +122,11 @@ class koopman:
                         test_pred_full += l_pred.item()
                         test_recons_full += l_recons.item()
                         test_phy_full += l_phy.item()
-                        
+
                 test_pred_full /= len(evalloader)
                 test_recons_full /= len(evalloader)
                 test_phy_full /= len(evalloader)
-                
+
             if self.scheduler is not None:
                 self.scheduler.step()
 
@@ -153,7 +153,7 @@ class koopman:
 
                 l_recons = self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
                 l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
-                
+
                 current = xx[..., -1:]
                 predicted = pred[..., -1:]
                 l_phy = self.physics(current, predicted)
@@ -161,7 +161,7 @@ class koopman:
                 test_pred_full += l_pred.item()
                 test_recons_full += l_recons.item()
                 test_phy_full += l_phy.item()
-        
+
         test_pred_full /= len(testloader)
         test_recons_full /= len(testloader)
         test_phy_full /= len(testloader)
@@ -192,7 +192,7 @@ class koopman:
                     current = xx[..., -1:]
                     predicted = im[..., -1:]
                     l_phy_step = self.physics(current, predicted)
-                    
+
                     if t == 0:
                         l_phy = l_phy_step
                         pred = im[...,-1:]
@@ -201,7 +201,7 @@ class koopman:
                         pred = torch.cat((pred, im[...,-1:]), -1)
 
                     xx = torch.cat((xx[..., step:], im[...,-1:]), dim=-1)
-                
+
                 l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
                 l_recons /= T_out
                 l_phy /= T_out
@@ -214,16 +214,16 @@ class koopman:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-            
+
             train_pred_full /= len(trainloader)
             train_recons_full /= len(trainloader)
             train_phy_full /= len(trainloader)
-            
+
             t2 = default_timer()
             test_pred_full = 0
             test_recons_full = 0
             test_phy_full = 0
-            
+
             if evalloader:
                 with torch.no_grad():
                     for xx, yy in evalloader:
@@ -236,11 +236,11 @@ class koopman:
                         for t in range(0, T_eval):
                             im, im_re = self.kernel(xx)
                             l_recons += self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
-                            
+
                             current = xx[..., -1:]
                             predicted = im[..., -1:]
                             l_phy_step = self.physics(current, predicted)
-                            
+
                             if t == 0:
                                 l_phy = l_phy_step
                                 pred = im[...,-1:]
@@ -248,17 +248,17 @@ class koopman:
                                 l_phy += l_phy_step
                                 pred = torch.cat((pred, im[...,-1:]), -1)
                             xx = torch.cat((xx[..., 1:], im[...,-1:]), dim=-1)
-                        
+
                         l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
-                        
+
                         test_recons_full += l_recons.item() / T_eval
                         test_pred_full += l_pred.item()
                         test_phy_full += l_phy.item() / T_eval
-                
+
                 test_recons_full /= len(evalloader)
                 test_pred_full /= len(evalloader)
                 test_phy_full /= len(evalloader)
-                
+
             if self.scheduler is not None:
                 self.scheduler.step()
 
@@ -270,6 +270,97 @@ class koopman:
                 if ep == 0:
                     print("Epoch", "Time", "Train Recon", "Train Pred", "Train Phys")
                 print(ep, t2 - t1, train_recons_full, train_pred_full, train_phy_full)
+
+    def train_semisupervised(self, epochs, labeled_loader, unlabeled_loader, evalloader=None, step=1, T_out=40):
+        history = {
+            "train_pred": [], "train_recon": [], "train_phy": [],
+            "unlabel_recon": [], "unlabel_phy": [],
+            "eval_pred": [], "eval_recon": [], "eval_phy": []
+        }
+        for ep in range(epochs):
+            self.kernel.train()
+            t1 = default_timer()
+            tr_pred, tr_recon, tr_phy = 0, 0, 0
+            for xx, yy in labeled_loader:
+                xx, yy = xx.to(self.device), yy.to(self.device)
+                bs = xx.shape[0]
+                l_recons, l_phy = 0, 0
+                for t in range(T_out):
+                    im, im_re = self.kernel(xx)
+                    l_recons += self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
+                    cur, nxt = xx[..., -1:], im[..., -1:]
+                    l_phy_step = self.physics(cur, nxt)
+                    if t == 0:
+                        l_phy = l_phy_step
+                        pred = nxt
+                    else:
+                        l_phy += l_phy_step
+                        pred = torch.cat((pred, nxt), -1)
+                    xx = torch.cat((xx[..., step:], nxt), dim=-1)
+                l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
+                l_recons /= T_out
+                l_phy /= T_out
+                loss = 5 * l_pred + 0.5 * l_recons + self.lambda_phy * l_phy
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+                tr_pred += l_pred.item()
+                tr_recon += l_recons.item()
+                tr_phy += l_phy.item()
+            un_recon, un_phy = 0, 0
+            for xx in unlabeled_loader:
+                if isinstance(xx, (list, tuple)): xx = xx[0]
+                xx = xx.to(self.device)
+                bs = xx.shape[0]
+                l_recons, l_phy = 0, 0
+                for t in range(T_out):
+                    im, im_re = self.kernel(xx)
+                    l_recons += self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
+                    cur, nxt = xx[..., -1:], im[..., -1:]
+                    l_phy_step = self.physics(cur, nxt)
+                    l_phy = l_phy_step if t == 0 else l_phy + l_phy_step
+                    xx = torch.cat((xx[..., step:], nxt), dim=-1)
+                l_recons /= T_out
+                l_phy /= T_out
+                loss = 0.5 * l_recons + self.lambda_phy * l_phy
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+                un_recon += l_recons.item()
+                un_phy += l_phy.item()
+            ev_pred, ev_recon, ev_phy = 0, 0, 0
+            if evalloader:
+                self.kernel.eval()
+                with torch.no_grad():
+                    for xx, yy in evalloader:
+                        xx, yy = xx.to(self.device), yy.to(self.device)
+                        bs = xx.shape[0]
+                        l_recons, l_phy = 0, 0
+                        for t in range(T_out):
+                            im, im_re = self.kernel(xx)
+                            l_recons += self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
+                            cur, nxt = xx[..., -1:], im[..., -1:]
+                            l_phy_step = self.physics(cur, nxt)
+                            if t == 0:
+                                l_phy, pred = l_phy_step, nxt
+                            else:
+                                l_phy += l_phy_step
+                                pred = torch.cat((pred, nxt), -1)
+                            xx = torch.cat((xx[..., 1:], nxt), dim=-1)
+                        l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
+                        ev_pred += l_pred.item()
+                        ev_recon += (l_recons.item() / T_out)
+                        ev_phy += (l_phy.item() / T_out)
+                ev_pred /= len(evalloader); ev_recon /= len(evalloader); ev_phy /= len(evalloader)
+            if self.scheduler: self.scheduler.step()
+            history["train_pred"].append(tr_pred/len(labeled_loader))
+            history["train_recon"].append(tr_recon/len(labeled_loader))
+            history["train_phy"].append(tr_phy/len(labeled_loader))
+            history["unlabel_recon"].append(un_recon/len(unlabeled_loader))
+            history["unlabel_phy"].append(un_phy/len(unlabeled_loader))
+            history["eval_pred"].append(ev_pred); history["eval_recon"].append(ev_recon); history["eval_phy"].append(ev_phy)
+            print(f"Epoch {ep} | Labeled(Pred:{history['train_pred'][-1]:.6f} Recon:{history['train_recon'][-1]:.6f}) | Unlabeled(Recon:{history['unlabel_recon'][-1]:.6f})")
+        return history
 
     def test(self, testloader, step = 1, T_out = 40, path = False, is_save = False, is_plot = False):
         time_error = torch.zeros([T_out,1])
@@ -289,29 +380,29 @@ class koopman:
                     im, im_re = self.kernel(xx)
                     l_recons += self.loss(im_re.reshape(bs, -1), xx.reshape(bs, -1))
                     t_error = self.loss(im[...,-1:],y)
-                    
+
                     current = xx[..., -1:]
                     predicted = im[..., -1:]
                     l_phy_step = self.physics(current, predicted)
-                    
+
                     if t == 0:
                         l_phy = l_phy_step
                         pred = im[...,-1:]
                     else:
                         l_phy += l_phy_step
                         pred = torch.cat((pred, im[...,-1:]), -1)
-                    
+
                     time_error[t] = time_error[t] + t_error.item()
                     xx = torch.cat((xx[..., 1:], im[...,-1:]), dim=-1)
 
                 l_recons /= T_out
                 l_phy /= T_out
                 l_pred = self.loss(pred.reshape(bs, -1), yy.reshape(bs, -1))
-                
+
                 test_recons_full += l_recons.item()
                 test_pred_full += l_pred.item()
                 test_phy_full += l_phy.item()
-                
+
                 if(loc == 0 and is_save):
                     torch.save({"pred":pred, "yy":yy}, path+ "pred_yy.pt")
 
@@ -330,7 +421,7 @@ class koopman:
                         plt.savefig(path + "time_"+str(i)+".png")
                         plt.close()
                 loc = loc + 1
-        
+
         test_pred_full /= loc
         test_recons_full /= loc
         test_phy_full /= loc
