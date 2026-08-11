@@ -39,7 +39,7 @@ import numpy as np
 from scipy.io import loadmat
 from torch.utils.data import TensorDataset, DataLoader
 
-from model_variational import koopman
+from koopmanlab.model_variational import koopman
 
 
 # ============================================================
