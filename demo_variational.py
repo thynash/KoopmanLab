@@ -1,282 +1,672 @@
 # ============================================================
 # demo_variational.py
 #
-# Variational KNO experiment for 2D Navier-Stokes
-# viscosity: nu = 1e-5
+# Variational KNO for 2D Navier-Stokes
 #
-# No results are saved.
-# Everything is displayed directly.
+# Dataset:
+#   NavierStokes_V1e-5_N1200_T20.mat
+#
+# Viscosity:
+#   nu = 1e-5
+#
+# This demo:
+#   1. Loads the .mat dataset directly
+#   2. Creates train/test loaders
+#   3. Trains Variational KNO for 25 epochs
+#   4. Displays training curves
+#   5. Displays autoregressive prediction errors
+#   6. Displays GT / Prediction / Error fields
+#   7. Prints final metrics
+#
+# NOTHING IS SAVED TO DISK.
+# ============================================================
+
+
+# ============================================================
+# 0. IMPORTS
 # ============================================================
 
 import torch
-import numpy as np
+import koopmanlab as kp
+
+import matplotlib
+matplotlib.use("module://matplotlib_inline.backend_inline")
+
 import matplotlib.pyplot as plt
+
+import numpy as np
+
+from scipy.io import loadmat
+from torch.utils.data import TensorDataset, DataLoader
 
 from model_variational import koopman
 
 
 # ============================================================
-# 1. DEVICE
+# 1. CONFIGURATION
 # ============================================================
 
-device = torch.device(
+DATA_PATH = "/content/NavierStokes_V1e-5_N1200_T20.mat"
+
+DEVICE = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
 
-print("=" * 70)
-print("VARIATIONAL KNO - NAVIER-STOKES")
-print("=" * 70)
-print("Device:", device)
-
-if torch.cuda.is_available():
-    print("GPU:", torch.cuda.get_device_name(0))
-
-
-# ============================================================
-# 2. DATASET
-# ============================================================
-#
-# IMPORTANT:
-# Replace ONLY this section with the SAME data-loading code
-# used by your current working demo.py.
-#
-# It must produce:
-#
-#     trainloader
-#     testloader
-#
-# Expected format:
-#
-#     xx : [B, Nx, Ny, T_in]
-#     yy : [B, Nx, Ny, T_out]
-#
-# Do not change your existing preprocessing here.
-# ============================================================
-
 # ------------------------------------------------------------
-# Example:
-#
-# from dataset import ...
-# from loader import ...
-#
-# trainloader, testloader = ...
+# Physical parameters
 # ------------------------------------------------------------
-
-
-# Safety check
-if "trainloader" not in globals():
-    raise RuntimeError(
-        "\ntrainloader was not created.\n"
-        "Copy the dataset-loading section from your existing "
-        "working demo.py into Section 2 of this file."
-    )
-
-if "testloader" not in globals():
-    raise RuntimeError(
-        "\ntestloader was not created.\n"
-        "Copy the dataset-loading section from your existing "
-        "working demo.py into Section 2 of this file."
-    )
-
-
-# ============================================================
-# 3. INSPECT DATA
-# ============================================================
-
-sample_x, sample_y = next(iter(trainloader))
-
-print("\n" + "-" * 70)
-print("DATASET")
-print("-" * 70)
-
-print("Input shape :", tuple(sample_x.shape))
-print("Target shape:", tuple(sample_y.shape))
-
-print(
-    "Input range :",
-    float(sample_x.min()),
-    "to",
-    float(sample_x.max())
-)
-
-print(
-    "Target range:",
-    float(sample_y.min()),
-    "to",
-    float(sample_y.max())
-)
-
-
-# ============================================================
-# 4. AUTOMATICALLY DETERMINE SPATIAL GRID
-# ============================================================
-
-# Expected:
-#
-# [B, Nx, Ny, T]
-
-if sample_x.ndim != 4:
-
-    raise RuntimeError(
-        f"Expected input with 4 dimensions "
-        f"[B, Nx, Ny, T], got {sample_x.shape}"
-    )
-
-Nx = sample_x.shape[1]
-Ny = sample_x.shape[2]
-
-T_in = sample_x.shape[-1]
-T_out = sample_y.shape[-1]
-
-print("\nGrid:")
-print("Nx =", Nx)
-print("Ny =", Ny)
-print("T_in =", T_in)
-print("T_out =", T_out)
-
-
-# ============================================================
-# 5. PHYSICAL PARAMETERS
-# ============================================================
 
 NU = 1e-5
 
-DX = 1.0 / Nx
-DY = 1.0 / Ny
+# Dataset is normally on [0, 1] x [0, 1]
+# These will be corrected automatically from the grid size.
 
 # IMPORTANT:
-# Change this if your dataset uses a different temporal spacing.
+# Set this to the actual temporal spacing used by your
+# Navier-Stokes dataset if your original demo specifies it.
 DT = 1.0
 
+# ------------------------------------------------------------
+# Dataset
+# ------------------------------------------------------------
 
-# ============================================================
-# 6. EXPERIMENT PARAMETERS
-# ============================================================
+TRAIN_RATIO = 0.8
+
+BATCH_SIZE = 20
+
+# ------------------------------------------------------------
+# Training
+# ------------------------------------------------------------
 
 EPOCHS = 25
-
-# Use the complete rollout contained in the dataset.
-ROLLOUT_STEPS = T_out
 
 LEARNING_RATE = 1e-3
 
 STEP_SIZE = 10
+
 GAMMA = 0.5
 
+# ------------------------------------------------------------
+# KNO architecture
+# ------------------------------------------------------------
 
-# ============================================================
-# 7. VARIATIONAL LOSS WEIGHTS
-# ============================================================
+OPERATOR_SIZE = 16
+
+MODES = 16
+
+DECOMPOSE = 8
+
+T_IN = 1
+
+# ------------------------------------------------------------
+# Variational loss
+# ------------------------------------------------------------
 
 LAMBDA_PRED = 5.0
+
 LAMBDA_RECON = 0.5
 
 LAMBDA_VAR = 0.1
 
 LAMBDA_WEAK = 1.0
+
 LAMBDA_ENERGY = 0.1
 
+N_TEST_FUNCTIONS = 8
+
 
 # ============================================================
-# 8. BUILD MODEL
+# 2. DEVICE INFORMATION
 # ============================================================
 
-print("\n" + "-" * 70)
+print("=" * 75)
+print("VARIATIONAL KNO — NAVIER-STOKES")
+print("=" * 75)
+
+print("Device:", DEVICE)
+
+if torch.cuda.is_available():
+
+    print(
+        "GPU:",
+        torch.cuda.get_device_name(0)
+    )
+
+
+# ============================================================
+# 3. LOAD MATLAB DATASET
+# ============================================================
+
+print("\n" + "-" * 75)
+print("LOADING DATASET")
+print("-" * 75)
+
+print("Path:")
+print(DATA_PATH)
+
+
+mat_data = loadmat(
+    DATA_PATH
+)
+
+
+# ------------------------------------------------------------
+# Display available MATLAB variables
+# ------------------------------------------------------------
+
+print("\nMATLAB variables:")
+
+for key, value in mat_data.items():
+
+    if not key.startswith("__"):
+
+        if isinstance(value, np.ndarray):
+
+            print(
+                f"  {key:20s} "
+                f"shape={value.shape} "
+                f"dtype={value.dtype}"
+            )
+
+
+# ============================================================
+# 4. FIND THE SOLUTION FIELD
+# ============================================================
+#
+# The standard Navier-Stokes MATLAB dataset stores the
+# solution under the key "u".
+#
+# We first try "u".
+#
+# If it is not present, automatically search for a suitable
+# numerical array.
+# ============================================================
+
+if "u" in mat_data:
+
+    data = mat_data["u"]
+
+else:
+
+    candidates = []
+
+    for key, value in mat_data.items():
+
+        if key.startswith("__"):
+            continue
+
+        if not isinstance(value, np.ndarray):
+            continue
+
+        if value.ndim >= 3:
+
+            candidates.append(
+                (key, value)
+            )
+
+    if len(candidates) == 0:
+
+        raise RuntimeError(
+            "Could not find a solution field in the .mat file."
+        )
+
+    print(
+        "\nWARNING: 'u' was not found."
+    )
+
+    print(
+        "Using:",
+        candidates[0][0]
+    )
+
+    data = candidates[0][1]
+
+
+# ============================================================
+# 5. CONVERT DATA TO FLOAT32
+# ============================================================
+
+data = np.asarray(
+    data,
+    dtype=np.float32
+)
+
+print("\nSolution field shape:")
+print(data.shape)
+
+print(
+    "Minimum:",
+    data.min()
+)
+
+print(
+    "Maximum:",
+    data.max()
+)
+
+print(
+    "Mean:",
+    data.mean()
+)
+
+print(
+    "Std:",
+    data.std()
+)
+
+
+# ============================================================
+# 6. CHECK DATA DIMENSIONS
+# ============================================================
+
+if data.ndim != 4:
+
+    raise RuntimeError(
+        "\nExpected Navier-Stokes data to have four dimensions "
+        "[N, Nx, Ny, T].\n"
+        f"Received shape: {data.shape}\n"
+        "If the dataset uses a different layout, inspect the "
+        "printed MATLAB variables above."
+    )
+
+
+# ------------------------------------------------------------
+# Expected:
+#
+# [N, Nx, Ny, T]
+# ------------------------------------------------------------
+
+N_SAMPLES = data.shape[0]
+
+NX = data.shape[1]
+
+NY = data.shape[2]
+
+TOTAL_TIME = data.shape[3]
+
+
+print("\n" + "-" * 75)
+print("DATASET INFORMATION")
+print("-" * 75)
+
+print(
+    "Number of samples:",
+    N_SAMPLES
+)
+
+print(
+    "Spatial grid:",
+    NX,
+    "x",
+    NY
+)
+
+print(
+    "Number of time steps:",
+    TOTAL_TIME
+)
+
+
+# ============================================================
+# 7. INPUT / OUTPUT CONSTRUCTION
+# ============================================================
+#
+# KNO receives the previous state as input:
+#
+#     [B, Nx, Ny, 1]
+#
+# and predicts future states:
+#
+#     [B, Nx, Ny, T_out]
+#
+# We use the first time slice as the initial condition and
+# the remaining time slices as the prediction target.
+# ============================================================
+
+if TOTAL_TIME < 2:
+
+    raise RuntimeError(
+        "Dataset must contain at least two time steps."
+    )
+
+
+x = data[..., :1]
+
+y = data[..., 1:]
+
+
+print("\nInput shape:")
+print(x.shape)
+
+print("Target shape:")
+print(y.shape)
+
+
+T_IN = x.shape[-1]
+
+T_OUT = y.shape[-1]
+
+
+# ============================================================
+# 8. TRAIN / TEST SPLIT
+# ============================================================
+
+N_TRAIN = int(
+    TRAIN_RATIO * N_SAMPLES
+)
+
+N_TEST = N_SAMPLES - N_TRAIN
+
+
+x_train = x[:N_TRAIN]
+
+y_train = y[:N_TRAIN]
+
+x_test = x[N_TRAIN:]
+
+y_test = y[N_TRAIN:]
+
+
+print("\n" + "-" * 75)
+print("TRAIN / TEST SPLIT")
+print("-" * 75)
+
+print(
+    "Training samples:",
+    N_TRAIN
+)
+
+print(
+    "Testing samples:",
+    N_TEST
+)
+
+print(
+    "Training input:",
+    x_train.shape
+)
+
+print(
+    "Training target:",
+    y_train.shape
+)
+
+print(
+    "Testing input:",
+    x_test.shape
+)
+
+print(
+    "Testing target:",
+    y_test.shape
+)
+
+
+# ============================================================
+# 9. CONVERT TO PYTORCH
+# ============================================================
+
+x_train = torch.from_numpy(
+    x_train
+)
+
+y_train = torch.from_numpy(
+    y_train
+)
+
+x_test = torch.from_numpy(
+    x_test
+)
+
+y_test = torch.from_numpy(
+    y_test
+)
+
+
+# ============================================================
+# 10. DATA LOADERS
+# ============================================================
+
+train_dataset = TensorDataset(
+    x_train,
+    y_train
+)
+
+test_dataset = TensorDataset(
+    x_test,
+    y_test
+)
+
+
+trainloader = DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    pin_memory=torch.cuda.is_available()
+)
+
+
+testloader = DataLoader(
+    test_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False,
+    pin_memory=torch.cuda.is_available()
+)
+
+
+# ============================================================
+# 11. SPATIAL / TEMPORAL PARAMETERS
+# ============================================================
+
+DX = 1.0 / NX
+
+DY = 1.0 / NY
+
+
+print("\n" + "-" * 75)
+print("PHYSICAL PARAMETERS")
+print("-" * 75)
+
+print(
+    "Viscosity nu:",
+    NU
+)
+
+print(
+    "dx:",
+    DX
+)
+
+print(
+    "dy:",
+    DY
+)
+
+print(
+    "dt:",
+    DT
+)
+
+print(
+    "Input time steps:",
+    T_IN
+)
+
+print(
+    "Output time steps:",
+    T_OUT
+)
+
+
+# ============================================================
+# 12. CREATE VARIATIONAL KNO
+# ============================================================
+
+print("\n" + "-" * 75)
 print("BUILDING VARIATIONAL KNO")
-print("-" * 70)
+print("-" * 75)
+
 
 model = koopman(
+
+    # --------------------------------------------------------
+    # KNO backbone
+    # --------------------------------------------------------
+
     backbone="KNO2d",
+
     autoencoder="Conv2d",
 
-    # Same KNO architecture as baseline
-    o=16,
-    m=16,
-    r=8,
+    o=OPERATOR_SIZE,
 
-    t_in=T_in,
+    m=MODES,
 
-    device=device,
+    r=DECOMPOSE,
 
-    # Supervised prediction loss
+    t_in=T_IN,
+
+    device=DEVICE,
+
+    # --------------------------------------------------------
+    # Existing prediction / reconstruction losses
+    # --------------------------------------------------------
+
     lambda_pred=LAMBDA_PRED,
 
-    # Autoencoder reconstruction loss
     lambda_recon=LAMBDA_RECON,
 
-    # Variational physics
+    # --------------------------------------------------------
+    # Variational loss
+    # --------------------------------------------------------
+
     lambda_var=LAMBDA_VAR,
 
-    # Navier-Stokes viscosity
+    # --------------------------------------------------------
+    # Navier-Stokes
+    # --------------------------------------------------------
+
     nu=NU,
 
-    # Grid
     dx=DX,
+
     dy=DY,
 
-    # Temporal spacing
     dt=DT,
 
+    # --------------------------------------------------------
     # Weak formulation
-    n_test=8,
+    # --------------------------------------------------------
+
+    n_test=N_TEST_FUNCTIONS,
+
     lambda_weak=LAMBDA_WEAK,
 
+    # --------------------------------------------------------
     # Energy balance
+    # --------------------------------------------------------
+
     lambda_energy=LAMBDA_ENERGY,
 )
 
 
 # ============================================================
-# 9. COMPILE
+# 13. COMPILE
 # ============================================================
 
 model.compile()
 
 
 # ============================================================
-# 10. OPTIMIZER
+# 14. OPTIMIZER
 # ============================================================
 
 model.opt_init(
+
     opt="Adam",
+
     lr=LEARNING_RATE,
+
     step_size=STEP_SIZE,
+
     gamma=GAMMA,
 )
 
 
 # ============================================================
-# 11. TRAIN
+# 15. TRAINING INFORMATION
 # ============================================================
 
-print("\n" + "=" * 70)
-print("TRAINING")
-print("=" * 70)
+print("\n" + "=" * 75)
+print("TRAINING CONFIGURATION")
+print("=" * 75)
 
-print(f"Epochs          : {EPOCHS}")
-print(f"Rollout steps   : {ROLLOUT_STEPS}")
-print(f"Viscosity       : {NU}")
-print(f"Learning rate   : {LEARNING_RATE}")
-print(f"Lambda var      : {LAMBDA_VAR}")
-print(f"Lambda weak     : {LAMBDA_WEAK}")
-print(f"Lambda energy   : {LAMBDA_ENERGY}")
-print("=" * 70)
+print(
+    f"Epochs              : {EPOCHS}"
+)
 
+print(
+    f"Batch size          : {BATCH_SIZE}"
+)
+
+print(
+    f"Rollout steps       : {T_OUT}"
+)
+
+print(
+    f"Learning rate       : {LEARNING_RATE}"
+)
+
+print(
+    f"Viscosity           : {NU}"
+)
+
+print(
+    f"Lambda prediction   : {LAMBDA_PRED}"
+)
+
+print(
+    f"Lambda reconstruction: {LAMBDA_RECON}"
+)
+
+print(
+    f"Lambda variational  : {LAMBDA_VAR}"
+)
+
+print(
+    f"Lambda weak         : {LAMBDA_WEAK}"
+)
+
+print(
+    f"Lambda energy       : {LAMBDA_ENERGY}"
+)
+
+print("=" * 75)
+
+
+# ============================================================
+# 16. TRAIN
+# ============================================================
 
 history = model.train(
+
     epochs=EPOCHS,
+
     trainloader=trainloader,
+
     step=1,
-    T_out=ROLLOUT_STEPS,
+
+    T_out=T_OUT,
+
     evalloader=testloader,
 )
 
 
 # ============================================================
-# 12. TRAINING CURVES
+# 17. TRAINING CURVES
 # ============================================================
 
 print("\nDisplaying training curves...")
+
 
 fig, axes = plt.subplots(
     2,
@@ -312,6 +702,7 @@ axes[0, 0].set_ylabel(
 )
 
 axes[0, 0].grid(True)
+
 axes[0, 0].legend()
 
 
@@ -321,12 +712,12 @@ axes[0, 0].legend()
 
 axes[0, 1].plot(
     history["train_var"],
-    label="Train Variational"
+    label="Train"
 )
 
 axes[0, 1].plot(
     history["eval_var"],
-    label="Test Variational"
+    label="Test"
 )
 
 axes[0, 1].set_title(
@@ -342,21 +733,22 @@ axes[0, 1].set_ylabel(
 )
 
 axes[0, 1].grid(True)
+
 axes[0, 1].legend()
 
 
 # ------------------------------------------------------------
-# Weak loss
+# Weak-form loss
 # ------------------------------------------------------------
 
 axes[1, 0].plot(
     history["train_weak"],
-    label="Train Weak"
+    label="Train"
 )
 
 axes[1, 0].plot(
     history["eval_weak"],
-    label="Test Weak"
+    label="Test"
 )
 
 axes[1, 0].set_title(
@@ -372,21 +764,22 @@ axes[1, 0].set_ylabel(
 )
 
 axes[1, 0].grid(True)
+
 axes[1, 0].legend()
 
 
 # ------------------------------------------------------------
-# Energy balance
+# Energy loss
 # ------------------------------------------------------------
 
 axes[1, 1].plot(
     history["train_energy"],
-    label="Train Energy"
+    label="Train"
 )
 
 axes[1, 1].plot(
     history["eval_energy"],
-    label="Test Energy"
+    label="Test"
 )
 
 axes[1, 1].set_title(
@@ -402,50 +795,68 @@ axes[1, 1].set_ylabel(
 )
 
 axes[1, 1].grid(True)
+
 axes[1, 1].legend()
 
 
 plt.suptitle(
-    "Variational KNO Training"
+    "Variational KNO — Navier-Stokes"
 )
 
 plt.tight_layout()
+
 plt.show()
 
 
 # ============================================================
-# 13. AUTOREGRESSIVE TEST
+# 18. AUTOREGRESSIVE TEST
 # ============================================================
 
-print("\n" + "=" * 70)
+print("\n" + "=" * 75)
 print("AUTOREGRESSIVE TEST")
-print("=" * 70)
+print("=" * 75)
+
 
 model.kernel.eval()
 
 
+# ------------------------------------------------------------
+# Take ONE complete test example
+# ------------------------------------------------------------
+
+xx, yy = next(
+    iter(testloader)
+)
+
+
+xx = xx.to(
+    DEVICE
+)
+
+yy = yy.to(
+    DEVICE
+)
+
+
+# ------------------------------------------------------------
+# Use first test sample
+# ------------------------------------------------------------
+
+xx_single = xx[0:1].clone()
+
+yy_single = yy[0:1].clone()
+
+
+predictions = []
+
+
+# ============================================================
+# 19. ROLLOUT
+# ============================================================
+
 with torch.no_grad():
 
-    # Take one test example
-    xx, yy = next(iter(testloader))
-
-    xx = xx.to(device)
-    yy = yy.to(device)
-
-    # --------------------------------------------------------
-    # Keep only one example for visualization
-    # --------------------------------------------------------
-
-    xx_single = xx[0:1].clone()
-    yy_single = yy[0:1].clone()
-
-    predictions = []
-
-    # --------------------------------------------------------
-    # Roll forward
-    # --------------------------------------------------------
-
-    for t in range(ROLLOUT_STEPS):
+    for t in range(T_OUT):
 
         pred, _ = model.kernel(
             xx_single
@@ -457,7 +868,6 @@ with torch.no_grad():
             predicted.clone()
         )
 
-        # Shift temporal window
         xx_single = torch.cat(
             (
                 xx_single[..., 1:],
@@ -466,14 +876,15 @@ with torch.no_grad():
             dim=-1
         )
 
-    prediction = torch.cat(
-        predictions,
-        dim=-1
-    )
+
+prediction = torch.cat(
+    predictions,
+    dim=-1
+)
 
 
 # ============================================================
-# 14. CONVERT TO CPU
+# 20. CPU ARRAYS
 # ============================================================
 
 prediction_cpu = (
@@ -490,30 +901,44 @@ truth_cpu = (
 
 
 # ============================================================
-# 15. ERROR AT EVERY TIME STEP
+# 21. ERROR OVER TIME
 # ============================================================
 
 mse_t = []
+
 relative_l2_t = []
 
-for t in range(ROLLOUT_STEPS):
+
+for t in range(T_OUT):
 
     pred_t = prediction_cpu[..., t]
 
     true_t = truth_cpu[..., t]
 
+
     mse = torch.mean(
-        (pred_t - true_t) ** 2
+        (
+            pred_t
+            -
+            true_t
+        ) ** 2
     )
 
+
     rel_l2 = (
-        torch.norm(pred_t - true_t)
+        torch.norm(
+            pred_t
+            -
+            true_t
+        )
         /
         (
             torch.norm(true_t)
-            + 1e-12
+            +
+            1e-12
         )
     )
+
 
     mse_t.append(
         mse.item()
@@ -525,7 +950,7 @@ for t in range(ROLLOUT_STEPS):
 
 
 # ============================================================
-# 16. ERROR VS TIME
+# 22. MSE VS TIME
 # ============================================================
 
 plt.figure(
@@ -533,7 +958,7 @@ plt.figure(
 )
 
 plt.plot(
-    range(1, ROLLOUT_STEPS + 1),
+    range(1, T_OUT + 1),
     mse_t,
     marker="o",
     markersize=3
@@ -548,7 +973,7 @@ plt.ylabel(
 )
 
 plt.title(
-    "Autoregressive Prediction Error"
+    "Autoregressive MSE vs Time"
 )
 
 plt.grid(True)
@@ -559,7 +984,7 @@ plt.show()
 
 
 # ============================================================
-# 17. RELATIVE L2 VS TIME
+# 23. RELATIVE L2 VS TIME
 # ============================================================
 
 plt.figure(
@@ -567,7 +992,7 @@ plt.figure(
 )
 
 plt.plot(
-    range(1, ROLLOUT_STEPS + 1),
+    range(1, T_OUT + 1),
     relative_l2_t,
     marker="o",
     markersize=3
@@ -582,7 +1007,7 @@ plt.ylabel(
 )
 
 plt.title(
-    "Relative L2 Error During Rollout"
+    "Autoregressive Relative L2 Error"
 )
 
 plt.grid(True)
@@ -593,34 +1018,36 @@ plt.show()
 
 
 # ============================================================
-# 18. FIELD VISUALIZATION
+# 24. SELECT VISUALIZATION TIMES
 # ============================================================
-
-# Select representative time steps.
-#
-# Beginning, early rollout, middle, late rollout, final.
 
 plot_times = sorted(
     set(
         [
             0,
-            min(9, ROLLOUT_STEPS - 1),
-            min(19, ROLLOUT_STEPS - 1),
-            min(29, ROLLOUT_STEPS - 1),
-            ROLLOUT_STEPS - 1,
+            min(4, T_OUT - 1),
+            min(9, T_OUT - 1),
+            min(14, T_OUT - 1),
+            T_OUT - 1,
         ]
     )
 )
 
 
+# ============================================================
+# 25. GT / PREDICTION / ERROR
+# ============================================================
+
 fig, axes = plt.subplots(
     len(plot_times),
     3,
-    figsize=(13, 3.5 * len(plot_times))
+    figsize=(
+        13,
+        3.5 * len(plot_times)
+    )
 )
 
 
-# Handle case where only one row exists
 if len(plot_times) == 1:
 
     axes = np.expand_dims(
@@ -642,11 +1069,14 @@ for row, t in enumerate(plot_times):
     )
 
     error_field = np.abs(
-        true_field - pred_field
+        true_field
+        -
+        pred_field
     )
 
+
     # --------------------------------------------------------
-    # Ground truth
+    # Ground Truth
     # --------------------------------------------------------
 
     im0 = axes[row, 0].imshow(
@@ -658,8 +1088,13 @@ for row, t in enumerate(plot_times):
         f"Ground Truth — t={t + 1}"
     )
 
-    axes[row, 0].set_xlabel("y")
-    axes[row, 0].set_ylabel("x")
+    axes[row, 0].set_xlabel(
+        "y"
+    )
+
+    axes[row, 0].set_ylabel(
+        "x"
+    )
 
     plt.colorbar(
         im0,
@@ -667,6 +1102,7 @@ for row, t in enumerate(plot_times):
         fraction=0.046,
         pad=0.04
     )
+
 
     # --------------------------------------------------------
     # Prediction
@@ -681,8 +1117,13 @@ for row, t in enumerate(plot_times):
         f"Prediction — t={t + 1}"
     )
 
-    axes[row, 1].set_xlabel("y")
-    axes[row, 1].set_ylabel("x")
+    axes[row, 1].set_xlabel(
+        "y"
+    )
+
+    axes[row, 1].set_ylabel(
+        "x"
+    )
 
     plt.colorbar(
         im1,
@@ -691,8 +1132,9 @@ for row, t in enumerate(plot_times):
         pad=0.04
     )
 
+
     # --------------------------------------------------------
-    # Error
+    # Absolute error
     # --------------------------------------------------------
 
     im2 = axes[row, 2].imshow(
@@ -704,8 +1146,13 @@ for row, t in enumerate(plot_times):
         f"Absolute Error — t={t + 1}"
     )
 
-    axes[row, 2].set_xlabel("y")
-    axes[row, 2].set_ylabel("x")
+    axes[row, 2].set_xlabel(
+        "y"
+    )
+
+    axes[row, 2].set_ylabel(
+        "x"
+    )
 
     plt.colorbar(
         im2,
@@ -726,7 +1173,7 @@ plt.show()
 
 
 # ============================================================
-# 19. FINAL METRICS
+# 26. FINAL METRICS
 # ============================================================
 
 overall_mse = torch.mean(
@@ -753,54 +1200,57 @@ overall_relative_l2 = (
 ).item()
 
 
-final_mse = mse_t[-1]
-final_relative_l2 = relative_l2_t[-1]
-
-
-print("\n")
-print("=" * 70)
+print("\n" + "=" * 75)
 print("FINAL VARIATIONAL KNO RESULTS")
-print("=" * 70)
+print("=" * 75)
+
 
 print(
     f"Overall rollout MSE       : "
     f"{overall_mse:.6e}"
 )
 
+
 print(
     f"Overall relative L2       : "
     f"{overall_relative_l2:.6e}"
 )
 
+
 print(
-    f"First-step MSE             : "
+    f"First-step MSE            : "
     f"{mse_t[0]:.6e}"
 )
 
-print(
-    f"Final-step MSE             : "
-    f"{final_mse:.6e}"
-)
 
 print(
-    f"First-step relative L2     : "
+    f"Final-step MSE            : "
+    f"{mse_t[-1]:.6e}"
+)
+
+
+print(
+    f"First-step relative L2    : "
     f"{relative_l2_t[0]:.6e}"
 )
 
+
 print(
-    f"Final-step relative L2     : "
-    f"{final_relative_l2:.6e}"
+    f"Final-step relative L2    : "
+    f"{relative_l2_t[-1]:.6e}"
 )
 
-print("=" * 70)
+
+print("=" * 75)
 
 
 # ============================================================
-# 20. LOSS SUMMARY
+# 27. LOSS SUMMARY
 # ============================================================
 
 print("\nLOSS SUMMARY")
-print("-" * 70)
+print("-" * 75)
+
 
 print(
     f"Initial train prediction : "
@@ -812,6 +1262,7 @@ print(
     f"{history['train_pred'][-1]:.6e}"
 )
 
+
 print(
     f"Initial train variational: "
     f"{history['train_var'][0]:.6e}"
@@ -821,6 +1272,7 @@ print(
     f"Final train variational  : "
     f"{history['train_var'][-1]:.6e}"
 )
+
 
 print(
     f"Initial train weak       : "
@@ -832,6 +1284,7 @@ print(
     f"{history['train_weak'][-1]:.6e}"
 )
 
+
 print(
     f"Initial train energy     : "
     f"{history['train_energy'][0]:.6e}"
@@ -842,7 +1295,13 @@ print(
     f"{history['train_energy'][-1]:.6e}"
 )
 
-print("=" * 70)
 
-print("\nExperiment finished.")
-print("No model, prediction, or figure was saved to disk.")
+print("=" * 75)
+
+print(
+    "\nExperiment completed."
+)
+
+print(
+    "No models, predictions, or figures were saved."
+)
