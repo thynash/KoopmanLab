@@ -998,6 +998,18 @@ class koopman:
         T_out=40,
         evalloader=False
     ):
+        history = {
+            "train_pred": [],
+            "train_recon": [],
+            "train_var": [],
+            "train_weak": [],
+            "train_energy": [],
+            "eval_pred": [],
+            "eval_recon": [],
+            "eval_var": [],
+            "eval_weak": [],
+            "eval_energy": [],
+        }
 
         for ep in range(epochs):
 
@@ -1135,6 +1147,12 @@ class koopman:
             train_weak_full /= n
             train_energy_full /= n
 
+            history["train_pred"].append(train_pred_full)
+            history["train_recon"].append(train_recon_full)
+            history["train_var"].append(train_var_full)
+            history["train_weak"].append(train_weak_full)
+            history["train_energy"].append(train_energy_full)
+
             t2 = default_timer()
 
             # ------------------------------------------------
@@ -1234,6 +1252,19 @@ class koopman:
                 eval_weak /= n_eval
                 eval_energy /= n_eval
 
+                history["eval_pred"].append(eval_pred)
+                history["eval_recon"].append(eval_recon)
+                history["eval_var"].append(eval_var)
+                history["eval_weak"].append(eval_weak)
+                history["eval_energy"].append(eval_energy)
+
+            else:
+                history["eval_pred"].append(0.0)
+                history["eval_recon"].append(0.0)
+                history["eval_var"].append(0.0)
+                history["eval_weak"].append(0.0)
+                history["eval_energy"].append(0.0)
+
             if self.scheduler is not None:
 
                 self.scheduler.step()
@@ -1273,6 +1304,7 @@ class koopman:
                 eval_weak,
                 eval_energy
             )
+        return history
 
     # ========================================================
     # Test
