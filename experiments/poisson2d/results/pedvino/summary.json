@@ -1,0 +1,9 @@
+{
+    "model": "PEDVINO",
+    "best_epoch": 43,
+    "validation_relative_l2": 0.20577958683172862,
+    "test_relative_l2": 0.200646577278773,
+    "test_mse": 0.003813983735938867,
+    "trainable_parameters": 83811,
+    "training_time_seconds": 413.65597581863403
+}

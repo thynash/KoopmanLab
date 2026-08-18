@@ -1,0 +1,16 @@
+{
+    "model": "Original KNO2d",
+    "experiment": "Poisson2D",
+    "seed": 42,
+    "epochs": 120,
+    "batch_size": 16,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "trainable_parameters": 83617,
+    "best_epoch": 118,
+    "best_validation_relative_l2": 0.2880038666725159,
+    "best_validation_mse": 0.006968560181558132,
+    "test_relative_l2": 0.2791885073979696,
+    "test_mse": 0.00664814048136274,
+    "training_time_seconds": 223.72572565078735
+}

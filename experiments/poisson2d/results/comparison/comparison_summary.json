@@ -1,0 +1,49 @@
+{
+    "KNO": {
+        "model": "Original KNO2d",
+        "experiment": "Poisson2D",
+        "seed": 42,
+        "epochs": 120,
+        "batch_size": 16,
+        "learning_rate": 0.001,
+        "weight_decay": 1e-05,
+        "trainable_parameters": 83617,
+        "best_epoch": 118,
+        "best_validation_relative_l2": 0.2880038666725159,
+        "best_validation_mse": 0.006968560181558132,
+        "test_relative_l2": 0.2791885073979696,
+        "test_mse": 0.00664814048136274,
+        "training_time_seconds": 223.72572565078735
+    },
+    "PEDVINO": {
+        "model": "PEDVINO",
+        "experiment": "Poisson2D",
+        "seed": 42,
+        "epochs_configured": 120,
+        "epochs_completed": 68,
+        "batch_size": 16,
+        "learning_rate": 0.001,
+        "weight_decay": 1e-05,
+        "scheduler": "cosine",
+        "trainable_parameters": 83811,
+        "best_epoch": 43,
+        "best_validation_relative_l2": 0.20577958683172862,
+        "best_validation_mse": 0.00391579274709026,
+        "test_relative_l2": 0.200646577278773,
+        "test_mse": 0.003813983735938867,
+        "training_time_seconds": 413.65597581863403,
+        "loss_weights": {
+            "prediction": 1.0,
+            "reconstruction": 0.02,
+            "energy": 0.05,
+            "gradient": 0.02,
+            "boundary": 0.05
+        },
+        "warmup_epochs": {
+            "energy": 15,
+            "gradient": 15,
+            "boundary": 10
+        }
+    },
+    "PEDVINO_relative_l2_improvement_percent": 28.132221792080752
+}

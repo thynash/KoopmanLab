@@ -1,0 +1,19 @@
+{
+    "model": "Original KNO2d",
+    "experiment": "DarcyFlow",
+    "seed": 42,
+    "epochs_configured": 150,
+    "epochs_completed": 150,
+    "batch_size": 20,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "trainable_parameters": 83617,
+    "best_epoch": 144,
+    "best_validation_relative_l2": 0.2944074755777691,
+    "best_validation_mse": 0.0005416902073193342,
+    "test_relative_l2": 0.29163417193108937,
+    "test_mse": 0.0005306251579895616,
+    "training_time_seconds": 261.65317249298096
+}

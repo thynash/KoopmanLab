@@ -1,0 +1,28 @@
+{
+    "model": "PEDVINO",
+    "experiment": "Darcy Flow",
+    "seed": 42,
+    "epochs": 150,
+    "batch_size": 20,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "trainable_parameters": 83811,
+    "best_epoch": 147,
+    "best_validation_relative_l2": 0.24073894920858965,
+    "best_validation_mse": 0.0003621979927023252,
+    "test_relative_l2": 0.23880554190537437,
+    "test_mse": 0.00035579497537886106,
+    "training_time_seconds": 576.5527520179749,
+    "loss_weights": {
+        "prediction": 1.0,
+        "reconstruction": 0.02,
+        "energy": 0.05,
+        "gradient": 0.02,
+        "boundary": 0.05
+    },
+    "warmup_epochs": {
+        "energy": 15,
+        "gradient": 15,
+        "boundary": 5
+    }
+}
