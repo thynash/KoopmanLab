@@ -3,7 +3,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
-torch.manual_seed(0)
+
 
 # The structure of Auto-Encoder
 class encoder_mlp(nn.Module):
