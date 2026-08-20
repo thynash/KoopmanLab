@@ -1,207 +1,297 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Compare Darcy experiment results:
+
+    1. KNO Baseline
+    2. Original/Data-enhanced VINO
+    3. Full PEDVINO
+
+Expected directory structure:
+
+experiments/darcy/
+│
+├── results/
+│   ├── baseline/
+│   │   ├── history.json
+│   │   └── metrics.json
+│   │
+│   ├── vino/
+│   │   ├── history.json
+│   │   └── metrics.json
+│   │
+│   └── pedvino/
+│       ├── history.json
+│       └── metrics.json
+│
+└── compare_results.py
+
+Generated comparison outputs:
+
+experiments/darcy/results/comparison/
+├── validation_relative_l2.png
+├── test_relative_l2.png
+├── pedvino_loss_components.png
+├── final_test_relative_l2.png
+├── final_metrics_comparison.png
+└── comparison_summary.json
+"""
+
 import os
 import json
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-from experiments.darcy import config
 
 
 # ============================================================
 # PATHS
 # ============================================================
 
-BASELINE_HISTORY_PATH = os.path.join(
-    config.BASELINE_RESULTS_DIR,
-    "history.json",
-)
+THIS_DIR = Path(__file__).resolve().parent
 
-PEDVINO_HISTORY_PATH = os.path.join(
-    config.PEDVINO_RESULTS_DIR,
-    "history.json",
-)
+RESULTS_DIR = THIS_DIR / "results"
 
-BASELINE_METRICS_PATH = os.path.join(
-    config.BASELINE_RESULTS_DIR,
-    "metrics.json",
-)
+BASELINE_DIR = RESULTS_DIR / "baseline"
+VINO_DIR = RESULTS_DIR / "vino"
+PEDVINO_DIR = RESULTS_DIR / "pedvino"
 
-PEDVINO_METRICS_PATH = os.path.join(
-    config.PEDVINO_RESULTS_DIR,
-    "metrics.json",
-)
+COMPARISON_DIR = RESULTS_DIR / "comparison"
 
-COMPARISON_DIR = getattr(
-    config,
-    "COMPARISON_RESULTS_DIR",
-    os.path.join(
-        config.RESULTS_DIR,
-        "comparison",
-    ),
+COMPARISON_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
 )
 
 
 # ============================================================
-# UTILITIES
+# JSON LOADING
 # ============================================================
 
 def load_json(path):
     """
-    Load a JSON file.
+    Load a JSON file safely.
     """
 
-    if not os.path.exists(path):
+    path = Path(path)
+
+    if not path.exists():
         raise FileNotFoundError(
-            f"Required file was not found:\n{path}"
+            f"\nRequired file not found:\n"
+            f"{path}\n"
         )
 
-    with open(
-        path,
-        "r",
-        encoding="utf-8",
-    ) as file:
-
+    with open(path, "r") as file:
         return json.load(file)
 
 
-def ensure_directory(path):
-    """
-    Create directory if necessary.
-    """
-
-    os.makedirs(
-        path,
-        exist_ok=True,
+def get_history(
+    experiment_dir,
+):
+    return load_json(
+        experiment_dir / "history.json"
     )
 
 
+def get_metrics(
+    experiment_dir,
+):
+    return load_json(
+        experiment_dir / "metrics.json"
+    )
+
+
+# ============================================================
+# HISTORY EXTRACTION
+# ============================================================
+
 def get_epochs(history):
     """
-    Return epochs from history.
+    Return epochs robustly.
 
-    Falls back to 1, 2, ..., N if epoch information
-    is unavailable.
+    If explicit epoch numbers exist, use them.
+    Otherwise infer them from the first list field.
     """
 
-    if (
-        "epoch" in history
-        and len(history["epoch"]) > 0
-    ):
-        return history["epoch"]
+    if "epoch" in history:
+        return np.asarray(
+            history["epoch"],
+            dtype=float,
+        )
 
-    # Find a usable metric length.
-    for split in (
-        "train",
-        "validation",
-        "test",
-    ):
-        if split in history:
-            for values in history[split].values():
-                return list(
-                    range(
-                        1,
-                        len(values) + 1,
-                    )
-                )
+    for value in history.values():
 
-    return []
+        if isinstance(value, list):
+
+            return np.arange(
+                1,
+                len(value) + 1,
+            )
+
+    return np.array([])
 
 
-def get_metric(
+def get_history_value(
     history,
-    split,
-    metric_name,
+    possible_keys,
 ):
     """
-    Safely retrieve a metric list.
+    Return the first matching history key.
 
-    Returns None if the metric does not exist.
+    This allows compatibility between the existing
+    baseline/PEDVINO histories and the new VINO history.
     """
 
-    if split not in history:
-        return None
+    for key in possible_keys:
 
-    if metric_name not in history[split]:
-        return None
+        if key in history:
 
-    values = history[split][metric_name]
+            return np.asarray(
+                history[key],
+                dtype=float,
+            )
+
+    return None
+
+
+def align_epochs_and_values(
+    history,
+    values,
+):
+    """
+    Make epoch/value arrays compatible in case a history
+    file has no explicit epoch field or lengths differ.
+    """
 
     if values is None:
-        return None
+        return None, None
 
-    if len(values) == 0:
-        return None
+    epochs = get_epochs(history)
 
-    return values
+    if len(epochs) == 0:
+
+        epochs = np.arange(
+            1,
+            len(values) + 1,
+        )
+
+    length = min(
+        len(epochs),
+        len(values),
+    )
+
+    return (
+        epochs[:length],
+        values[:length],
+    )
 
 
-def plot_two_curves(
-    epochs_1,
-    values_1,
-    label_1,
-    epochs_2,
-    values_2,
-    label_2,
-    title,
-    ylabel,
+# ============================================================
+# PLOT 1
+# VALIDATION RELATIVE L2
+# ============================================================
+
+def plot_validation_l2(
+    baseline,
+    vino,
+    pedvino,
     save_path,
-    log_scale=False,
 ):
     """
-    Plot two experiment curves.
+    Compare validation Relative L2 curves.
     """
 
     plt.figure(
         figsize=(10, 6)
     )
 
+    experiments = [
+        (
+            "KNO",
+            baseline,
+            [
+                "validation_relative_l2",
+                "val_relative_l2",
+            ],
+        ),
+        (
+            "VINO",
+            vino,
+            [
+                "validation_relative_l2",
+                "val_relative_l2",
+            ],
+        ),
+        (
+            "PEDVINO",
+            pedvino,
+            [
+                "validation_relative_l2",
+                "val_relative_l2",
+            ],
+        ),
+    ]
+
     plotted = False
 
-    if (
-        values_1 is not None
-        and len(values_1) > 0
-    ):
-        plt.plot(
-            epochs_1[:len(values_1)],
-            values_1,
-            label=label_1,
-            linewidth=2,
-        )
-        plotted = True
+    for (
+        label,
+        history,
+        keys,
+    ) in experiments:
 
-    if (
-        values_2 is not None
-        and len(values_2) > 0
-    ):
+        values = get_history_value(
+            history,
+            keys,
+        )
+
+        epochs, values = align_epochs_and_values(
+            history,
+            values,
+        )
+
+        if values is None:
+            print(
+                f"WARNING: Validation Relative L2 "
+                f"not found for {label}."
+            )
+            continue
+
         plt.plot(
-            epochs_2[:len(values_2)],
-            values_2,
-            label=label_2,
+            epochs,
+            values,
+            label=label,
             linewidth=2,
         )
+
         plotted = True
 
     if not plotted:
+
         plt.close()
+
         print(
-            f"Skipped plot because no data was found: "
-            f"{title}"
+            "WARNING: No validation curves available."
         )
-        return False
+
+        return
 
     plt.xlabel("Epoch")
-    plt.ylabel(ylabel)
-    plt.title(title)
+    plt.ylabel("Validation Relative L2 Error")
 
-    plt.grid(
-        True,
-        alpha=0.3,
+    plt.title(
+        "Darcy: Validation Relative L2 Comparison"
     )
 
     plt.legend()
 
-    if log_scale:
-        plt.yscale("log")
+    plt.grid(
+        True,
+        linestyle="--",
+        alpha=0.4,
+    )
 
     plt.tight_layout()
 
@@ -213,280 +303,267 @@ def plot_two_curves(
 
     plt.close()
 
-    print(
-        f"Saved: {save_path}"
-    )
-
-    return True
-
-
-# ============================================================
-# PLOT 1
-# VALIDATION RELATIVE L2 COMPARISON
-# ============================================================
-
-def plot_validation_l2(
-    baseline_history,
-    pedvino_history,
-):
-    """
-    Compare validation Relative L2 over training.
-    """
-
-    baseline_epochs = get_epochs(
-        baseline_history
-    )
-
-    pedvino_epochs = get_epochs(
-        pedvino_history
-    )
-
-    baseline_values = get_metric(
-        baseline_history,
-        "validation",
-        "relative_l2",
-    )
-
-    pedvino_values = get_metric(
-        pedvino_history,
-        "validation",
-        "relative_l2",
-    )
-
-    save_path = os.path.join(
-        COMPARISON_DIR,
-        "01_validation_relative_l2.png",
-    )
-
-    plot_two_curves(
-        baseline_epochs,
-        baseline_values,
-        "Baseline KNO",
-        pedvino_epochs,
-        pedvino_values,
-        "PEDVINO",
-        "Validation Relative L2 Error",
-        "Relative L2 Error",
-        save_path,
-    )
+    print(f"Saved: {save_path}")
 
 
 # ============================================================
 # PLOT 2
-# TEST RELATIVE L2 COMPARISON
+# TEST RELATIVE L2
 # ============================================================
 
 def plot_test_l2(
-    baseline_history,
-    pedvino_history,
+    baseline,
+    vino,
+    pedvino,
+    save_path,
 ):
     """
-    Compare test Relative L2 over training.
+    Compare test Relative L2 curves.
+
+    The VINO script may only evaluate the test set
+    after training. In that case it will not have a
+    per-epoch test curve, and the method is skipped here.
+    Final test comparison is still shown separately.
     """
 
-    baseline_epochs = get_epochs(
-        baseline_history
+    plt.figure(
+        figsize=(10, 6)
     )
 
-    pedvino_epochs = get_epochs(
-        pedvino_history
+    experiments = [
+        (
+            "KNO",
+            baseline,
+            [
+                "test_relative_l2",
+            ],
+        ),
+        (
+            "VINO",
+            vino,
+            [
+                "test_relative_l2",
+            ],
+        ),
+        (
+            "PEDVINO",
+            pedvino,
+            [
+                "test_relative_l2",
+            ],
+        ),
+    ]
+
+    plotted = False
+
+    for (
+        label,
+        history,
+        keys,
+    ) in experiments:
+
+        values = get_history_value(
+            history,
+            keys,
+        )
+
+        epochs, values = align_epochs_and_values(
+            history,
+            values,
+        )
+
+        if values is None:
+            print(
+                f"INFO: Per-epoch test Relative L2 "
+                f"not available for {label}; "
+                f"skipping its test curve."
+            )
+            continue
+
+        plt.plot(
+            epochs,
+            values,
+            label=label,
+            linewidth=2,
+        )
+
+        plotted = True
+
+    if not plotted:
+
+        plt.close()
+
+        print(
+            "WARNING: No per-epoch test curves available."
+        )
+
+        return
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Test Relative L2 Error")
+
+    plt.title(
+        "Darcy: Test Relative L2 Comparison"
     )
 
-    baseline_values = get_metric(
-        baseline_history,
-        "test",
-        "relative_l2",
+    plt.legend()
+
+    plt.grid(
+        True,
+        linestyle="--",
+        alpha=0.4,
     )
 
-    pedvino_values = get_metric(
-        pedvino_history,
-        "test",
-        "relative_l2",
-    )
+    plt.tight_layout()
 
-    save_path = os.path.join(
-        COMPARISON_DIR,
-        "02_test_relative_l2.png",
-    )
-
-    plot_two_curves(
-        baseline_epochs,
-        baseline_values,
-        "Baseline KNO",
-        pedvino_epochs,
-        pedvino_values,
-        "PEDVINO",
-        "Test Relative L2 Error",
-        "Relative L2 Error",
+    plt.savefig(
         save_path,
+        dpi=200,
+        bbox_inches="tight",
     )
+
+    plt.close()
+
+    print(f"Saved: {save_path}")
 
 
 # ============================================================
 # PLOT 3
-# TRAINING PREDICTION LOSS COMPARISON
+# PEDVINO LOSS COMPONENTS
 # ============================================================
 
-def plot_prediction_loss(
-    baseline_history,
-    pedvino_history,
+def plot_pedvino_loss_components(
+    pedvino,
+    save_path,
 ):
     """
-    Compare the supervised prediction loss.
+    Plot PEDVINO's individual loss components separately.
 
-    This is a fair loss comparison because both models
-    learn from the solution target.
-    """
-
-    baseline_epochs = get_epochs(
-        baseline_history
-    )
-
-    pedvino_epochs = get_epochs(
-        pedvino_history
-    )
-
-    baseline_values = get_metric(
-        baseline_history,
-        "train",
-        "prediction_loss",
-    )
-
-    pedvino_values = get_metric(
-        pedvino_history,
-        "train",
-        "prediction_loss",
-    )
-
-    save_path = os.path.join(
-        COMPARISON_DIR,
-        "03_prediction_loss.png",
-    )
-
-    plot_two_curves(
-        baseline_epochs,
-        baseline_values,
-        "Baseline KNO",
-        pedvino_epochs,
-        pedvino_values,
-        "PEDVINO",
-        "Training Prediction Loss",
-        "Prediction Loss",
-        save_path,
-        log_scale=True,
-    )
-
-
-# ============================================================
-# PLOT 4
-# PEDVINO INDIVIDUAL LOSS COMPONENTS
-# ============================================================
-
-def plot_pedvino_losses(
-    pedvino_history,
-):
-    """
-    Automatically detect and plot all individual PEDVINO
-    training losses.
-
-    Expected possible keys include:
-
-        total_loss
-        prediction_loss
-        reconstruction_loss
-        energy_loss
-        gradient_loss
-        boundary_loss
-
-    Any additional future loss component will also be
-    detected automatically if its name contains 'loss'.
+    These losses are PEDVINO-specific and are intentionally
+    not compared numerically against VINO or KNO losses.
     """
 
     epochs = get_epochs(
-        pedvino_history
+        pedvino
     )
 
-    train_history = pedvino_history.get(
-        "train",
-        {},
-    )
-
-    if len(train_history) == 0:
-        print(
-            "No PEDVINO training history found."
-        )
-        return
-
-    # --------------------------------------------------------
-    # Prefer explicit component losses.
-    # --------------------------------------------------------
-
-    excluded_losses = {
-        "total_loss",
-    }
-
-    loss_keys = []
-
-    for key, values in train_history.items():
-
-        if key in excluded_losses:
-            continue
-
-        if "loss" not in key.lower():
-            continue
-
-        if values is None:
-            continue
-
-        if len(values) == 0:
-            continue
-
-        loss_keys.append(key)
-
-    if len(loss_keys) == 0:
-        print(
-            "No individual PEDVINO loss components found."
-        )
-        return
+    components = [
+        (
+            "Prediction Loss",
+            [
+                "prediction_loss",
+                "train_prediction_loss",
+            ],
+        ),
+        (
+            "Reconstruction Loss",
+            [
+                "reconstruction_loss",
+                "train_reconstruction_loss",
+            ],
+        ),
+        (
+            "Energy Loss",
+            [
+                "energy_loss",
+                "train_energy_loss",
+            ],
+        ),
+        (
+            "Gradient Loss",
+            [
+                "gradient_loss",
+                "train_gradient_loss",
+            ],
+        ),
+        (
+            "Boundary Loss",
+            [
+                "boundary_loss",
+                "train_boundary_loss",
+            ],
+        ),
+    ]
 
     plt.figure(
         figsize=(11, 7)
     )
 
-    for loss_name in sorted(loss_keys):
+    plotted = False
 
-        values = train_history[loss_name]
+    for (
+        label,
+        keys,
+    ) in components:
 
-        plt.plot(
-            epochs[:len(values)],
-            values,
-            linewidth=2,
-            label=loss_name.replace(
-                "_",
-                " ",
-            ).title(),
+        values = get_history_value(
+            pedvino,
+            keys,
         )
+
+        if values is None:
+            continue
+
+        if len(epochs) == 0:
+            current_epochs = np.arange(
+                1,
+                len(values) + 1,
+            )
+        else:
+            length = min(
+                len(epochs),
+                len(values),
+            )
+
+            current_epochs = epochs[:length]
+            values = values[:length]
+
+        if np.isfinite(values).any():
+
+            plt.plot(
+                current_epochs,
+                values,
+                label=label,
+                linewidth=2,
+            )
+
+            plotted = True
+
+    if not plotted:
+
+        plt.close()
+
+        print(
+            "WARNING: No PEDVINO individual loss "
+            "components were found."
+        )
+
+        return
 
     plt.xlabel("Epoch")
     plt.ylabel("Loss Value")
 
     plt.title(
-        "PEDVINO Individual Training Loss Components"
+        "Darcy: PEDVINO Individual Loss Components"
+    )
+
+    plt.yscale(
+        "symlog",
+        linthresh=1e-8,
+    )
+
+    plt.legend(
+        loc="best"
     )
 
     plt.grid(
         True,
-        alpha=0.3,
+        which="both",
+        linestyle="--",
+        alpha=0.4,
     )
-
-    plt.legend()
 
     plt.tight_layout()
-
-    save_path = os.path.join(
-        COMPARISON_DIR,
-        "04_pedvino_individual_losses.png",
-    )
 
     plt.savefig(
         save_path,
@@ -496,57 +573,86 @@ def plot_pedvino_losses(
 
     plt.close()
 
-    print(
-        f"Saved: {save_path}"
-    )
+    print(f"Saved: {save_path}")
 
 
 # ============================================================
-# PLOT 5
+# METRIC HELPER
+# ============================================================
+
+def metric_value(
+    metrics,
+    possible_keys,
+    default=np.nan,
+):
+    """
+    Retrieve a metric using multiple possible names.
+    """
+
+    for key in possible_keys:
+
+        if key in metrics:
+
+            try:
+                return float(
+                    metrics[key]
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                return default
+
+    return default
+
+
+# ============================================================
+# PLOT 4
 # FINAL TEST RELATIVE L2
 # ============================================================
 
 def plot_final_test_l2(
     baseline_metrics,
+    vino_metrics,
     pedvino_metrics,
+    save_path,
 ):
     """
-    Bar plot comparing final test Relative L2.
+    Compare final test Relative L2.
     """
 
-    baseline_value = baseline_metrics.get(
-        "test_relative_l2",
-        None,
-    )
-
-    pedvino_value = pedvino_metrics.get(
-        "test_relative_l2",
-        None,
-    )
-
-    if (
-        baseline_value is None
-        or pedvino_value is None
-    ):
-        print(
-            "Skipped final test L2 plot because "
-            "metrics.json does not contain "
-            "test_relative_l2."
-        )
-        return
-
     models = [
-        "Baseline KNO",
+        "KNO",
+        "VINO",
         "PEDVINO",
     ]
 
     values = [
-        baseline_value,
-        pedvino_value,
+        metric_value(
+            baseline_metrics,
+            [
+                "test_relative_l2",
+                "final_test_relative_l2",
+            ],
+        ),
+        metric_value(
+            vino_metrics,
+            [
+                "test_relative_l2",
+                "final_test_relative_l2",
+            ],
+        ),
+        metric_value(
+            pedvino_metrics,
+            [
+                "test_relative_l2",
+                "final_test_relative_l2",
+            ],
+        ),
     ]
 
     plt.figure(
-        figsize=(8, 6)
+        figsize=(9, 6)
     )
 
     bars = plt.bar(
@@ -555,39 +661,41 @@ def plot_final_test_l2(
     )
 
     plt.ylabel(
-        "Test Relative L2 Error"
+        "Final Test Relative L2 Error"
     )
 
     plt.title(
-        "Final Test Relative L2 Comparison"
+        "Darcy: Final Test Relative L2 Comparison"
     )
 
     plt.grid(
         True,
         axis="y",
-        alpha=0.3,
+        linestyle="--",
+        alpha=0.4,
     )
 
-    for bar, value in zip(
+    for (
+        bar,
+        value,
+    ) in zip(
         bars,
         values,
     ):
 
-        plt.text(
-            bar.get_x()
-            + bar.get_width() / 2,
-            bar.get_height(),
-            f"{value:.4e}",
-            ha="center",
-            va="bottom",
-        )
+        if np.isfinite(value):
+
+            plt.text(
+                bar.get_x()
+                + bar.get_width() / 2.0,
+                bar.get_height(),
+                f"{value:.4e}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
 
     plt.tight_layout()
-
-    save_path = os.path.join(
-        COMPARISON_DIR,
-        "05_final_test_relative_l2.png",
-    )
 
     plt.savefig(
         save_path,
@@ -597,198 +705,318 @@ def plot_final_test_l2(
 
     plt.close()
 
-    print(
-        f"Saved: {save_path}"
-    )
+    print(f"Saved: {save_path}")
 
 
 # ============================================================
-# SUMMARY
+# PLOT 5
+# FINAL METRICS
 # ============================================================
 
-def get_improvement(
-    baseline_value,
-    pedvino_value,
+def plot_final_metrics(
+    baseline_metrics,
+    vino_metrics,
+    pedvino_metrics,
+    save_path,
 ):
     """
-    Percentage improvement.
-
-    Positive:
-        PEDVINO has lower error.
-
-    Negative:
-        PEDVINO has higher error.
+    Compare final:
+        - Test Relative L2
+        - Test MSE
     """
 
-    if baseline_value == 0:
-        return None
+    models = [
+        "KNO",
+        "VINO",
+        "PEDVINO",
+    ]
 
-    return (
-        (baseline_value - pedvino_value)
-        / baseline_value
-        * 100.0
+    relative_l2 = np.array(
+        [
+            metric_value(
+                baseline_metrics,
+                [
+                    "test_relative_l2",
+                    "final_test_relative_l2",
+                ],
+            ),
+            metric_value(
+                vino_metrics,
+                [
+                    "test_relative_l2",
+                    "final_test_relative_l2",
+                ],
+            ),
+            metric_value(
+                pedvino_metrics,
+                [
+                    "test_relative_l2",
+                    "final_test_relative_l2",
+                ],
+            ),
+        ]
     )
 
+    mse = np.array(
+        [
+            metric_value(
+                baseline_metrics,
+                [
+                    "test_mse",
+                    "final_test_mse",
+                    "mse",
+                ],
+            ),
+            metric_value(
+                vino_metrics,
+                [
+                    "test_mse",
+                    "final_test_mse",
+                    "mse",
+                ],
+            ),
+            metric_value(
+                pedvino_metrics,
+                [
+                    "test_mse",
+                    "final_test_mse",
+                    "mse",
+                ],
+            ),
+        ]
+    )
 
-def build_summary(
+    x = np.arange(
+        len(models)
+    )
+
+    width = 0.35
+
+    plt.figure(
+        figsize=(10, 6)
+    )
+
+    plt.bar(
+        x - width / 2,
+        relative_l2,
+        width,
+        label="Test Relative L2",
+    )
+
+    plt.bar(
+        x + width / 2,
+        mse,
+        width,
+        label="Test MSE",
+    )
+
+    plt.xticks(
+        x,
+        models,
+    )
+
+    plt.ylabel(
+        "Metric Value"
+    )
+
+    plt.title(
+        "Darcy: Final Metric Comparison"
+    )
+
+    plt.yscale(
+        "log"
+    )
+
+    plt.legend()
+
+    plt.grid(
+        True,
+        axis="y",
+        linestyle="--",
+        alpha=0.4,
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+        save_path,
+        dpi=200,
+        bbox_inches="tight",
+    )
+
+    plt.close()
+
+    print(f"Saved: {save_path}")
+
+
+# ============================================================
+# PRINT RESULTS TABLE
+# ============================================================
+
+def print_summary_table(
     baseline_metrics,
+    vino_metrics,
     pedvino_metrics,
 ):
     """
-    Create comparison summary.
+    Print a concise experiment summary.
     """
 
-    baseline_test_l2 = baseline_metrics.get(
-        "test_relative_l2",
-        None,
-    )
-
-    pedvino_test_l2 = pedvino_metrics.get(
-        "test_relative_l2",
-        None,
-    )
-
-    improvement = None
-
-    if (
-        baseline_test_l2 is not None
-        and pedvino_test_l2 is not None
-    ):
-        improvement = get_improvement(
-            baseline_test_l2,
-            pedvino_test_l2,
-        )
-
-    summary = {
-        "experiment": "Darcy Flow",
-
-        "baseline": baseline_metrics,
-
-        "pedvino": pedvino_metrics,
-
-        "pedvino_test_relative_l2_improvement_percent":
-            improvement,
-    }
-
-    return summary
-
-
-def print_summary(
-    baseline_metrics,
-    pedvino_metrics,
-    summary,
-):
-    """
-    Print a readable terminal comparison.
-    """
-
-    print()
-    print("=" * 70)
-    print("DARCY FLOW FINAL COMPARISON")
-    print("=" * 70)
-
-    print(
-        f"{'Metric':<35}"
-        f"{'Baseline KNO':>18}"
-        f"{'PEDVINO':>18}"
-    )
-
-    print("-" * 70)
-
-    comparison_keys = [
+    experiments = [
         (
-            "Best Epoch",
-            "best_epoch",
-            ".0f",
+            "KNO",
+            baseline_metrics,
         ),
         (
-            "Validation Relative L2",
-            "best_validation_relative_l2",
-            ".6e",
+            "VINO",
+            vino_metrics,
         ),
         (
-            "Test Relative L2",
-            "test_relative_l2",
-            ".6e",
-        ),
-        (
-            "Test MSE",
-            "test_mse",
-            ".6e",
-        ),
-        (
-            "Trainable Parameters",
-            "trainable_parameters",
-            ",.0f",
-        ),
-        (
-            "Training Time (s)",
-            "training_time_seconds",
-            ".3f",
+            "PEDVINO",
+            pedvino_metrics,
         ),
     ]
 
-    for (
-        display_name,
-        key,
-        format_spec,
-    ) in comparison_keys:
+    print("\n" + "=" * 85)
+    print("DARCY EXPERIMENT COMPARISON")
+    print("=" * 85)
 
-        baseline_value = baseline_metrics.get(
-            key,
-            None,
-        )
-
-        pedvino_value = pedvino_metrics.get(
-            key,
-            None,
-        )
-
-        baseline_text = (
-            format(
-                baseline_value,
-                format_spec,
-            )
-            if baseline_value is not None
-            else "N/A"
-        )
-
-        pedvino_text = (
-            format(
-                pedvino_value,
-                format_spec,
-            )
-            if pedvino_value is not None
-            else "N/A"
-        )
-
-        print(
-            f"{display_name:<35}"
-            f"{baseline_text:>18}"
-            f"{pedvino_text:>18}"
-        )
-
-    print("-" * 70)
-
-    improvement = summary.get(
-        "pedvino_test_relative_l2_improvement_percent",
-        None,
+    print(
+        f"{'Method':<15}"
+        f"{'Test Rel L2':>20}"
+        f"{'Test MSE':>20}"
+        f"{'Parameters':>20}"
     )
 
-    if improvement is not None:
+    print("-" * 85)
 
-        print(
-            "PEDVINO Relative L2 improvement: "
-            f"{improvement:.2f}%"
+    rows = []
+
+    for (
+        name,
+        metrics,
+    ) in experiments:
+
+        test_l2 = metric_value(
+            metrics,
+            [
+                "test_relative_l2",
+                "final_test_relative_l2",
+            ],
         )
 
-    else:
-
-        print(
-            "PEDVINO Relative L2 improvement: N/A"
+        test_mse = metric_value(
+            metrics,
+            [
+                "test_mse",
+                "final_test_mse",
+                "mse",
+            ],
         )
 
-    print("=" * 70)
+        parameters = metric_value(
+            metrics,
+            [
+                "parameter_count",
+                "trainable_parameters",
+                "num_parameters",
+            ],
+        )
+
+        rows.append(
+            {
+                "method": name,
+                "test_relative_l2": test_l2,
+                "test_mse": test_mse,
+                "parameter_count": parameters,
+            }
+        )
+
+        parameter_text = (
+            f"{int(parameters):,}"
+            if np.isfinite(parameters)
+            else "N/A"
+        )
+
+        print(
+            f"{name:<15}"
+            f"{test_l2:>20.6e}"
+            f"{test_mse:>20.6e}"
+            f"{parameter_text:>20}"
+        )
+
+    print("=" * 85)
+
+    return rows
+
+
+# ============================================================
+# SAVE SUMMARY
+# ============================================================
+
+def save_summary(
+    rows,
+    baseline_metrics,
+    vino_metrics,
+    pedvino_metrics,
+):
+    """
+    Save all final comparable metrics.
+    """
+
+    best_method = min(
+        rows,
+        key=lambda row: (
+            row["test_relative_l2"]
+            if np.isfinite(
+                row["test_relative_l2"]
+            )
+            else float("inf")
+        ),
+    )
+
+    summary = {
+        "experiment": "darcy_comparison",
+
+        "methods": rows,
+
+        "best_method_by_test_relative_l2":
+            best_method["method"],
+
+        "best_test_relative_l2":
+            best_method["test_relative_l2"],
+
+        "raw_metrics": {
+            "baseline":
+                baseline_metrics,
+
+            "vino":
+                vino_metrics,
+
+            "pedvino":
+                pedvino_metrics,
+        },
+    }
+
+    summary_path = (
+        COMPARISON_DIR
+        / "comparison_summary.json"
+    )
+
+    with open(
+        summary_path,
+        "w",
+    ) as file:
+
+        json.dump(
+            summary,
+            file,
+            indent=4,
+        )
+
+    print(
+        f"Saved: {summary_path}"
+    )
 
 
 # ============================================================
@@ -798,114 +1026,145 @@ def print_summary(
 def main():
 
     print("=" * 70)
-    print("DARCY FLOW - RESULTS COMPARISON")
+    print("DARCY RESULTS COMPARISON")
     print("=" * 70)
 
-    ensure_directory(
-        COMPARISON_DIR
+    # --------------------------------------------------------
+    # Load histories
+    # --------------------------------------------------------
+
+    print("\nLoading experiment histories...")
+
+    baseline_history = get_history(
+        BASELINE_DIR
+    )
+
+    vino_history = get_history(
+        VINO_DIR
+    )
+
+    pedvino_history = get_history(
+        PEDVINO_DIR
     )
 
     # --------------------------------------------------------
-    # Load results
+    # Load final metrics
     # --------------------------------------------------------
 
-    baseline_history = load_json(
-        BASELINE_HISTORY_PATH
+    print("Loading experiment metrics...")
+
+    baseline_metrics = get_metrics(
+        BASELINE_DIR
     )
 
-    pedvino_history = load_json(
-        PEDVINO_HISTORY_PATH
+    vino_metrics = get_metrics(
+        VINO_DIR
     )
 
-    baseline_metrics = load_json(
-        BASELINE_METRICS_PATH
-    )
-
-    pedvino_metrics = load_json(
-        PEDVINO_METRICS_PATH
+    pedvino_metrics = get_metrics(
+        PEDVINO_DIR
     )
 
     # --------------------------------------------------------
-    # Generate plots
+    # Plot validation curves
     # --------------------------------------------------------
 
-    print()
-    print("Generating comparison plots...")
-    print()
+    print("\nGenerating plots...\n")
 
     plot_validation_l2(
-        baseline_history,
-        pedvino_history,
+        baseline=baseline_history,
+        vino=vino_history,
+        pedvino=pedvino_history,
+        save_path=(
+            COMPARISON_DIR
+            / "validation_relative_l2.png"
+        ),
     )
+
+    # --------------------------------------------------------
+    # Plot test curves
+    # --------------------------------------------------------
 
     plot_test_l2(
-        baseline_history,
-        pedvino_history,
+        baseline=baseline_history,
+        vino=vino_history,
+        pedvino=pedvino_history,
+        save_path=(
+            COMPARISON_DIR
+            / "test_relative_l2.png"
+        ),
     )
 
-    plot_prediction_loss(
-        baseline_history,
-        pedvino_history,
+    # --------------------------------------------------------
+    # PEDVINO internal losses
+    # --------------------------------------------------------
+
+    plot_pedvino_loss_components(
+        pedvino=pedvino_history,
+        save_path=(
+            COMPARISON_DIR
+            / "pedvino_loss_components.png"
+        ),
     )
 
-    plot_pedvino_losses(
-        pedvino_history
-    )
+    # --------------------------------------------------------
+    # Final Relative L2
+    # --------------------------------------------------------
 
     plot_final_test_l2(
-        baseline_metrics,
-        pedvino_metrics,
+        baseline_metrics=baseline_metrics,
+        vino_metrics=vino_metrics,
+        pedvino_metrics=pedvino_metrics,
+        save_path=(
+            COMPARISON_DIR
+            / "final_test_relative_l2.png"
+        ),
+    )
+
+    # --------------------------------------------------------
+    # Final metrics
+    # --------------------------------------------------------
+
+    plot_final_metrics(
+        baseline_metrics=baseline_metrics,
+        vino_metrics=vino_metrics,
+        pedvino_metrics=pedvino_metrics,
+        save_path=(
+            COMPARISON_DIR
+            / "final_metrics_comparison.png"
+        ),
     )
 
     # --------------------------------------------------------
     # Summary
     # --------------------------------------------------------
 
-    summary = build_summary(
-        baseline_metrics,
-        pedvino_metrics,
+    rows = print_summary_table(
+        baseline_metrics=baseline_metrics,
+        vino_metrics=vino_metrics,
+        pedvino_metrics=pedvino_metrics,
     )
 
-    summary_path = os.path.join(
-        COMPARISON_DIR,
-        "comparison_summary.json",
+    save_summary(
+        rows=rows,
+        baseline_metrics=baseline_metrics,
+        vino_metrics=vino_metrics,
+        pedvino_metrics=pedvino_metrics,
     )
 
-    with open(
-        summary_path,
-        "w",
-        encoding="utf-8",
-    ) as file:
-
-        json.dump(
-            summary,
-            file,
-            indent=4,
-        )
-
-    print()
-    print_summary(
-        baseline_metrics,
-        pedvino_metrics,
-        summary,
-    )
-
-    print()
-    print(
-        f"Summary saved: {summary_path}"
-    )
-
-    print()
-    print("=" * 70)
-    print("COMPARISON COMPLETED")
+    print("\n" + "=" * 70)
+    print("COMPARISON COMPLETE")
     print("=" * 70)
 
-    print()
-    print("All plots are saved in:")
     print(
-        COMPARISON_DIR
+        f"\nOutputs saved in:\n"
+        f"{COMPARISON_DIR}"
     )
 
+
+# ============================================================
+# ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
     main()

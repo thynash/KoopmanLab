@@ -1,0 +1,19 @@
+{
+    "model": "Original KNO1d",
+    "experiment": "AllenCahn",
+    "seed": 42,
+    "epochs_configured": 150,
+    "epochs_completed": 150,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "trainable_parameters": 9889,
+    "best_epoch": 145,
+    "best_validation_relative_l2": 0.00048052115365862844,
+    "best_validation_mse": 3.121024614453442e-08,
+    "test_relative_l2": 0.0004520268047538896,
+    "test_mse": 3.1918750001599015e-08,
+    "training_time_seconds": 69.6818208694458
+}

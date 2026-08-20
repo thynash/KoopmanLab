@@ -1,0 +1,34 @@
+{
+    "experiment": "Burgers 1D",
+    "model": "Original KNO1d",
+    "dataset_path": "/home/antisyn/KoopmanLab/experiments/burgers/data/burgers_dataset.pt",
+    "dataset_size": 2000,
+    "best_epoch": 148,
+    "training_time_seconds": 59.399653673172,
+    "training_time_minutes": 0.9899942278862,
+    "best_validation_relative_l2": 0.000896583505285283,
+    "train": {
+        "relative_l2": 0.0009466527568708573,
+        "mse": 3.351048841133369e-07
+    },
+    "validation": {
+        "relative_l2": 0.000896583505285283,
+        "mse": 3.0090352386954086e-07
+    },
+    "test": {
+        "relative_l2": 0.0009415707318112254,
+        "mse": 3.076154568285953e-07
+    },
+    "config": {
+        "grid_size": 128,
+        "viscosity": 0.01,
+        "final_time": 0.02,
+        "operator_size": 24,
+        "modes_x": 16,
+        "decompose": 4,
+        "epochs": 150,
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "weight_decay": 1e-05
+    }
+}

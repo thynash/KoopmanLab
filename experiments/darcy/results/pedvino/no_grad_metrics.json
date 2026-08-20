@@ -1,0 +1,28 @@
+{
+    "model": "PEDVINO",
+    "experiment": "DarcyFlow",
+    "variant": "no_gradient_ablation",
+    "description": "PEDVINO Darcy ablation using only prediction/data loss and variational energy loss. Reconstruction, gradient and boundary losses are disabled.",
+    "seed": 42,
+    "epochs_configured": 150,
+    "epochs_completed": 150,
+    "batch_size": 20,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "trainable_parameters": 83811,
+    "loss_weights": {
+        "prediction": 1.0,
+        "variational_energy": 0.05,
+        "reconstruction": 0.0,
+        "gradient": 0.0,
+        "boundary": 0.0
+    },
+    "best_epoch": 147,
+    "best_validation_relative_l2": 0.23792241812708617,
+    "best_validation_mse": 0.0003537724822914849,
+    "test_relative_l2": 0.23842801071703146,
+    "test_mse": 0.0003546709039558967,
+    "training_time_seconds": 518.8677890300751
+}

@@ -1,0 +1,22 @@
+{
+    "experiment": "darcy_vino",
+    "method": "Data-enhanced VINO",
+    "best_epoch": 138,
+    "best_val_relative_l2": 0.009692843382557234,
+    "test_relative_l2": 0.0096772621696194,
+    "test_mse": 6.812204617290263e-07,
+    "parameter_count": 74129,
+    "train_size": 1400,
+    "val_size": 300,
+    "test_size": 300,
+    "epochs": 150,
+    "batch_size": 20,
+    "learning_rate": 0.001,
+    "vino_modes_x": 12,
+    "vino_modes_y": 12,
+    "vino_width": 8,
+    "vino_depth": 4,
+    "lambda_data": 1.0,
+    "lambda_physics": 0.05,
+    "boundary_condition": "hard_dirichlet_xy_xminus1_yminus1"
+}

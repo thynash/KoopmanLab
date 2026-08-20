@@ -1,0 +1,21 @@
+{
+    "experiment": "Burgers 1D",
+    "model": "PEDVINO-KNO1d",
+    "functional": "BurgersFunctional",
+    "pde": "u_t + u*u_x - nu*u_xx = 0",
+    "viscosity": 0.01,
+    "best_epoch": 146,
+    "training_time_minutes": 2.7009308457374575,
+    "train": {
+        "relative_l2": 0.0007286553404160909,
+        "mse": 2.0727976854167147e-07
+    },
+    "validation": {
+        "relative_l2": 0.0006930363193775217,
+        "mse": 1.9013800984642632e-07
+    },
+    "test": {
+        "relative_l2": 0.0007161179091781378,
+        "mse": 1.8283900317328515e-07
+    }
+}

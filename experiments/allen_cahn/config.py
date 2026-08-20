@@ -6,7 +6,7 @@ import torch
 # EXPERIMENT
 # ============================================================
 
-EXPERIMENT_NAME = "burgers"
+EXPERIMENT_NAME = "allen_cahn"
 
 SEED = 42
 
@@ -46,7 +46,7 @@ COMPARISON_RESULTS_DIR = os.path.join(
 
 DATASET_PATH = os.path.join(
     DATA_DIR,
-    "burgers_dataset.pt",
+    "allen_cahn_dataset.pt",
 )
 
 
@@ -123,18 +123,18 @@ DX = (
 
 
 # ============================================================
-# BURGERS PDE
+# ALLEN-CAHN PDE
 # ============================================================
 
 # PDE:
 #
-#     u_t + u u_x = nu u_xx
+#     u_t = epsilon^2 u_xx + u - u^3
 #
 # equivalently:
 #
-#     u_t + u u_x - nu u_xx = 0
+#     u_t - epsilon^2 u_xx - u + u^3 = 0
 
-VISCOSITY = 0.01
+EPSILON = 0.01
 
 
 # ============================================================
@@ -143,7 +143,7 @@ VISCOSITY = 0.01
 
 INITIAL_TIME = 0.0
 
-FINAL_TIME = 0.02
+FINAL_TIME = 0.10
 
 TIME_HORIZON = (
     FINAL_TIME
@@ -162,6 +162,7 @@ SOLVER_NUM_STEPS = int(
         / SOLVER_DT
     )
 )
+
 
 # Actual PDE time difference used by PEDVINO when computing:
 #
@@ -227,6 +228,8 @@ PERSISTENT_WORKERS = (
 #
 #     u_0(x)
 #       =
+#       c_0
+#       +
 #       sum_k [
 #           a_k sin(2 pi k x / L)
 #           +
@@ -237,19 +240,26 @@ PERSISTENT_WORKERS = (
 
 NUM_INITIAL_MODES = 8
 
-INITIAL_AMPLITUDE = 1.0
+INITIAL_AMPLITUDE = 0.35
 
-SPECTRAL_DECAY_POWER = 2.0
+INITIAL_MEAN_AMPLITUDE = 0.15
+
+SPECTRAL_DECAY_POWER = 1.5
 
 
 # ============================================================
 # NUMERICAL DATA GENERATION
 # ============================================================
 
-# Spectral derivatives are used with a fourth-order
-# Runge-Kutta integrator.
+# The Allen-Cahn dataset is generated using a
+# semi-implicit Fourier spectral solver:
+#
+#     u_t = epsilon^2 u_xx + u - u^3
+#
+# Diffusion is treated implicitly and the reaction term
+# explicitly.
 
-SOLVER_METHOD = "rk4_spectral"
+SOLVER_METHOD = "semi_implicit_spectral"
 
 # Generate the dataset in batches so generation does not
 # unnecessarily consume memory.
@@ -261,7 +271,7 @@ DATA_GENERATION_BATCH_SIZE = 100
 # INPUT / OUTPUT DIMENSIONS
 # ============================================================
 
-# Burgers operator:
+# Allen-Cahn operator:
 #
 #     u(x, 0) -> u(x, T)
 
@@ -275,6 +285,9 @@ OUTPUT_CHANNELS = 1
 # ============================================================
 # KNO / PEDVINO LATENT DIMENSION
 # ============================================================
+
+# Keep the same architecture as the Burgers experiment
+# for a consistent experimental setup.
 
 OPERATOR_SIZE = 24
 
@@ -366,10 +379,11 @@ LAMBDA_ENERGY = 0.05
 
 LAMBDA_GRAD = 0.02
 
-# Burgers dataset is periodic.
+
+# Allen-Cahn dataset uses periodic boundary conditions.
 #
-# We will handle the boundary term appropriately in the
-# PEDVINO experiment code rather than using a Dirichlet BC.
+# The periodic boundary handling will be implemented in the
+# PEDVINO experiment rather than imposing Dirichlet values.
 
 LAMBDA_BC = 0.05
 
@@ -495,7 +509,7 @@ assert NUM_INITIAL_MODES > 0
 
 assert NUM_INITIAL_MODES < GRID_SIZE_X // 2
 
-assert VISCOSITY > 0.0
+assert EPSILON > 0.0
 
 assert TIME_HORIZON > 0.0
 
@@ -524,7 +538,7 @@ assert TEST_SIZE > 0
 if __name__ == "__main__":
 
     print("=" * 60)
-    print("BURGERS EXPERIMENT CONFIGURATION")
+    print("ALLEN-CAHN EXPERIMENT CONFIGURATION")
     print("=" * 60)
 
     print(f"Dataset path         : {DATASET_PATH}")
@@ -532,13 +546,15 @@ if __name__ == "__main__":
     print(f"Grid size            : {GRID_SIZE_X}")
     print(f"Domain               : {DOMAIN_X}")
     print(f"DX                   : {DX}")
-    print(f"Viscosity            : {VISCOSITY}")
+    print(f"Epsilon              : {EPSILON}")
     print(f"Final time           : {FINAL_TIME}")
     print(f"Solver dt            : {SOLVER_DT}")
     print(f"Solver steps         : {SOLVER_NUM_STEPS}")
     print(f"Number of samples    : {NUM_SAMPLES}")
-    print(f"Train / Val / Test   : "
-          f"{TRAIN_SIZE} / {VAL_SIZE} / {TEST_SIZE}")
+    print(
+        f"Train / Val / Test   : "
+        f"{TRAIN_SIZE} / {VAL_SIZE} / {TEST_SIZE}"
+    )
     print(f"Batch size           : {BATCH_SIZE}")
     print(f"Operator size        : {OPERATOR_SIZE}")
     print(f"KNO modes            : {MODES_X}")

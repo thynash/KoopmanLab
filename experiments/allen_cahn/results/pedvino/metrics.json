@@ -1,0 +1,27 @@
+{
+    "model": "PEDVINO-KNO1d",
+    "experiment": "Allen-Cahn",
+    "seed": 42,
+    "epochs_configured": 150,
+    "epochs_completed": 150,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "trainable_parameters": 10035,
+    "best_epoch": 149,
+    "best_validation_relative_l2": 0.0007408094111209114,
+    "best_validation_mse": 1.0981217286598622e-07,
+    "test_relative_l2": 0.0006802076225479443,
+    "test_mse": 9.803980229132018e-08,
+    "training_time_seconds": 142.0730595588684,
+    "allen_cahn_dt": 0.1,
+    "loss_weights": {
+        "prediction": 1.0,
+        "reconstruction": 0.02,
+        "energy": 0.05,
+        "gradient": 0.02,
+        "boundary": 0.05
+    }
+}

@@ -1,51 +1,96 @@
 {
-    "experiment": "Darcy Flow",
-    "baseline": {
-        "model": "Original KNO2d",
-        "experiment": "DarcyFlow",
-        "seed": 42,
-        "epochs_configured": 150,
-        "epochs_completed": 150,
-        "batch_size": 20,
-        "learning_rate": 0.001,
-        "weight_decay": 1e-05,
-        "optimizer": "adamw",
-        "scheduler": "cosine",
-        "trainable_parameters": 83617,
-        "best_epoch": 144,
-        "best_validation_relative_l2": 0.2944074755777691,
-        "best_validation_mse": 0.0005416902073193342,
-        "test_relative_l2": 0.29163417193108937,
-        "test_mse": 0.0005306251579895616,
-        "training_time_seconds": 261.65317249298096
-    },
-    "pedvino": {
-        "model": "PEDVINO",
-        "experiment": "Darcy Flow",
-        "seed": 42,
-        "epochs": 150,
-        "batch_size": 20,
-        "learning_rate": 0.001,
-        "weight_decay": 1e-05,
-        "trainable_parameters": 83811,
-        "best_epoch": 147,
-        "best_validation_relative_l2": 0.24073894920858965,
-        "best_validation_mse": 0.0003621979927023252,
-        "test_relative_l2": 0.23880554190537437,
-        "test_mse": 0.00035579497537886106,
-        "training_time_seconds": 576.5527520179749,
-        "loss_weights": {
-            "prediction": 1.0,
-            "reconstruction": 0.02,
-            "energy": 0.05,
-            "gradient": 0.02,
-            "boundary": 0.05
+    "experiment": "darcy_comparison",
+    "methods": [
+        {
+            "method": "KNO",
+            "test_relative_l2": 0.29163417193108937,
+            "test_mse": 0.0005306251579895616,
+            "parameter_count": 83617.0
         },
-        "warmup_epochs": {
-            "energy": 15,
-            "gradient": 15,
-            "boundary": 5
+        {
+            "method": "VINO",
+            "test_relative_l2": 0.0096772621696194,
+            "test_mse": 6.812204617290263e-07,
+            "parameter_count": 74129.0
+        },
+        {
+            "method": "PEDVINO",
+            "test_relative_l2": 0.23880554190537437,
+            "test_mse": 0.00035579497537886106,
+            "parameter_count": 83811.0
         }
-    },
-    "pedvino_test_relative_l2_improvement_percent": 18.114691318889044
+    ],
+    "best_method_by_test_relative_l2": "VINO",
+    "best_test_relative_l2": 0.0096772621696194,
+    "raw_metrics": {
+        "baseline": {
+            "model": "Original KNO2d",
+            "experiment": "DarcyFlow",
+            "seed": 42,
+            "epochs_configured": 150,
+            "epochs_completed": 150,
+            "batch_size": 20,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05,
+            "optimizer": "adamw",
+            "scheduler": "cosine",
+            "trainable_parameters": 83617,
+            "best_epoch": 144,
+            "best_validation_relative_l2": 0.2944074755777691,
+            "best_validation_mse": 0.0005416902073193342,
+            "test_relative_l2": 0.29163417193108937,
+            "test_mse": 0.0005306251579895616,
+            "training_time_seconds": 261.65317249298096
+        },
+        "vino": {
+            "experiment": "darcy_vino",
+            "method": "Data-enhanced VINO",
+            "best_epoch": 138,
+            "best_val_relative_l2": 0.009692843382557234,
+            "test_relative_l2": 0.0096772621696194,
+            "test_mse": 6.812204617290263e-07,
+            "parameter_count": 74129,
+            "train_size": 1400,
+            "val_size": 300,
+            "test_size": 300,
+            "epochs": 150,
+            "batch_size": 20,
+            "learning_rate": 0.001,
+            "vino_modes_x": 12,
+            "vino_modes_y": 12,
+            "vino_width": 8,
+            "vino_depth": 4,
+            "lambda_data": 1.0,
+            "lambda_physics": 0.05,
+            "boundary_condition": "hard_dirichlet_xy_xminus1_yminus1"
+        },
+        "pedvino": {
+            "model": "PEDVINO",
+            "experiment": "Darcy Flow",
+            "seed": 42,
+            "epochs": 150,
+            "batch_size": 20,
+            "learning_rate": 0.001,
+            "weight_decay": 1e-05,
+            "trainable_parameters": 83811,
+            "best_epoch": 147,
+            "best_validation_relative_l2": 0.24073894920858965,
+            "best_validation_mse": 0.0003621979927023252,
+            "test_relative_l2": 0.23880554190537437,
+            "test_mse": 0.00035579497537886106,
+            "training_time_seconds": 576.5527520179749,
+            "loss_weights": {
+                "prediction": 1.0,
+                "reconstruction": 0.02,
+                "energy": 0.05,
+                "gradient": 0.02,
+                "boundary": 0.05
+            },
+            "warmup_epochs": {
+                "energy": 15,
+                "gradient": 15,
+                "boundary": 5
+            }
+        }
+    }
 }

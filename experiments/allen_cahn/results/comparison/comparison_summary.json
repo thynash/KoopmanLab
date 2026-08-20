@@ -1,0 +1,21 @@
+{
+    "experiment": "Allen-Cahn",
+    "methods": {
+        "KNO": {
+            "model": "Original KNO1d",
+            "test_relative_l2": 0.0004520268047538896,
+            "test_mse": 3.1918750001599015e-08,
+            "trainable_parameters": 9889,
+            "best_epoch": 145,
+            "best_validation_relative_l2": 0.00048052115365862844
+        },
+        "PEDVINO": {
+            "model": "PEDVINO-KNO1d",
+            "test_relative_l2": 0.0006802076225479443,
+            "test_mse": 9.803980229132018e-08,
+            "trainable_parameters": 10035,
+            "best_epoch": 149,
+            "best_validation_relative_l2": 0.0007408094111209114
+        }
+    }
+}

@@ -1,0 +1,28 @@
+{
+    "experiment": "Burgers 1D",
+    "comparison": "KNO vs PEDVINO-KNO1d",
+    "baseline": {
+        "best_epoch": 148,
+        "validation_relative_l2": 0.000896583505285283,
+        "test_relative_l2": 0.0009415707318112254,
+        "test_mse": 3.076154568285953e-07,
+        "train_relative_l2": 0.0009466527568708573,
+        "train_mse": 3.351048841133369e-07,
+        "trainable_parameters": null,
+        "training_time_seconds": 59.399653673172,
+        "training_time_minutes": 0.9899942278862
+    },
+    "pedvino": {
+        "best_epoch": 146,
+        "validation_relative_l2": 0.0006930363193775217,
+        "test_relative_l2": 0.0007161179091781378,
+        "test_mse": 1.8283900317328515e-07,
+        "train_relative_l2": 0.0007286553404160909,
+        "train_mse": 2.0727976854167147e-07,
+        "trainable_parameters": null,
+        "training_time_seconds": null,
+        "training_time_minutes": 2.7009308457374575
+    },
+    "test_relative_l2_improvement_percent": 23.944332063020035,
+    "pedvino_better_than_baseline": true
+}

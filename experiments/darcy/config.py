@@ -49,7 +49,10 @@ DATASET_PATH = os.path.join(
     "darcy_dataset.pt",
 )
 
-
+VINO_RESULTS_DIR = os.path.join(
+    RESULTS_DIR,
+    "vino",
+)
 # ============================================================
 # CREATE DIRECTORIES
 # ============================================================
@@ -71,6 +74,10 @@ os.makedirs(
     exist_ok=True,
 )
 
+os.makedirs(
+    VINO_RESULTS_DIR,
+    exist_ok=True,
+)
 
 # ============================================================
 # DEVICE
@@ -414,7 +421,41 @@ CHECKPOINT_METRIC = "relative_l2"
 
 PRINT_EVERY = 1
 
+# ============================================================
+# ORIGINAL VINO EXPERIMENT
+# ============================================================
 
+VINO_EPOCHS = 150
+
+VINO_BATCH_SIZE = 20
+
+VINO_LEARNING_RATE = 1e-3
+
+VINO_WEIGHT_DECAY = 1e-5
+
+VINO_MODES_X = 12
+
+VINO_MODES_Y = 12
+
+# Selected to keep the model close to the requested
+# ~84k trainable parameter budget.
+VINO_WIDTH = 8
+
+VINO_DEPTH = 4
+
+VINO_GAMMA = 0.5
+
+VINO_PATIENCE = 30
+
+# Data-enhanced VINO:
+# total loss = data loss + lambda_vino * variational loss
+VINO_USE_DATA = True
+
+VINO_LAMBDA_DATA = 1.0
+
+VINO_LAMBDA_PHYSICS = 0.05
+
+VINO_GRADIENT_CLIP = 1.0
 # ============================================================
 # SAVING
 # ============================================================
@@ -447,7 +488,10 @@ PEDVINO_CHECKPOINT_PATH = os.path.join(
     "best_model.pt",
 )
 
-
+VINO_CHECKPOINT_PATH = os.path.join(
+    VINO_RESULTS_DIR,
+    "best_model.pt",
+)
 # ============================================================
 # HISTORY PATHS
 # ============================================================
@@ -462,7 +506,10 @@ PEDVINO_HISTORY_PATH = os.path.join(
     "history.json",
 )
 
-
+VINO_HISTORY_PATH = os.path.join(
+    VINO_RESULTS_DIR,
+    "history.json",
+)
 # ============================================================
 # METRICS PATHS
 # ============================================================
@@ -477,7 +524,10 @@ PEDVINO_METRICS_PATH = os.path.join(
     "metrics.json",
 )
 
-
+VINO_METRICS_PATH = os.path.join(
+    VINO_RESULTS_DIR,
+    "metrics.json",
+)
 # ============================================================
 # CONFIG VALIDATION
 # ============================================================
