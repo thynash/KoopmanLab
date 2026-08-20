@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from koopmanlab.models import kno
+from koopmanlab.models import kno_pedvino
 
 from koopmanlab.physics_encoder import (
     PhysicsEncoder1D,
